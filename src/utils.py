@@ -2,7 +2,7 @@ from scipy.linalg import eigh
 import numpy as np
 
 
-def is_psd(matrix):
+def is_psd(matrix: np.array):
     """
     Check if a matrix is positive semi-definite
     :param matrix: a matrix (numpy.array)
@@ -18,7 +18,7 @@ def is_psd(matrix):
         return False
 
 
-def get_near_psd(matrix):
+def get_near_psd(matrix: np.array):
     """
     Find nearest PSD matrix if matrix if not PSD, else return original matrix
     :param matrix: a matrix (numpy.array)
