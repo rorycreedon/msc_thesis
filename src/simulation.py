@@ -56,7 +56,7 @@ def simulate_recourse(C: float, scm: StructuralCausalModel, iterations: int = 5,
     true_positives = []
 
     # Make matrix for quadratic form cost function
-    A = np.triu((2 * np.eye(X.shape[1]) - X.corr()).values)
+    A = np.triu((1.5 * np.eye(X.shape[1]) - X.corr()/2).values)
     if not is_psd(A):
         print("A is not PSD, getting nearest PSD matrix")
         A = get_near_psd(A)
@@ -145,16 +145,18 @@ if __name__ == "__main__":
 
     accuracy, class_positive, true_positives = simulate_recourse(C=C,
                                                                  scm=scm.copy(),
-                                                                 iterations=15,
+                                                                 iterations=10,
                                                                  partial_recourse=True,
                                                                  cost_function='quad_form',
-                                                                 backend='cvxpy')
+                                                                 backend='gurobi')
     plot(accuracy, class_positive, true_positives, C=C, cost_function="quad_form")
 
     accuracy, class_positive, true_positives = simulate_recourse(C=C,
                                                                  scm=scm.copy(),
-                                                                 iterations=15,
+                                                                 iterations=10,
                                                                  partial_recourse=True,
                                                                  cost_function='quadratic',
-                                                                 backend='cvxpy')
+                                                                 backend='gurobi')
     plot(accuracy, class_positive, true_positives, C=C, cost_function="quadratic")
+
+

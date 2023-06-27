@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from multiprocessing import Pool
 import cvxpy as cp
+import gurobipy as gp
+from gurobipy import GRB
 
 
 class Recourse:
@@ -24,7 +26,7 @@ class Recourse:
         self.X_negative = None
         self.recourse = None
         if A is None:
-            self.A = np.triu((2 * np.eye(self.X.shape[1]) - X.corr()).values)
+            self.A = np.triu((2 * np.eye(self.X.shape[1]) - X.corr() / 2).values)
         else:
             self.A = A
 
@@ -56,30 +58,67 @@ class Recourse:
             prob = cp.Problem(objective, constraints)
             prob.solve(verbose=False)
 
+            recourse_x = x.value
+
             if prob.status != "optimal":
                 raise ValueError(f"Optimisation not optimal: {prob.status}")
 
-            # Calculate cost of recourse under true model
+        elif backend == 'gurobi':
+            # Turn off output
+            gp.setParam('OutputFlag', 0)
+            gp.setParam('NonConvex', 0)
+
+            # Create model
+            model = gp.Model("full_recourse")
+
+            # Define variables
+            X = model.addMVar(shape=self.X.shape, vtype=GRB.CONTINUOUS, name="x0", lb=self.X, ub=self.X)
+            X_prime = model.addMVar(shape=self.X.shape, name="x", vtype=GRB.CONTINUOUS, lb=-50, ub=50)
+
+            # Define objective function
             if cost_function == 'quadratic':
-                costs = np.sum((x.value - self.X.values) ** 2, axis=1)
+                obj = ((X - X_prime) * (X - X_prime)).sum()
 
             elif cost_function == 'quad_form':
-                costs = np.array(
-                    [cp.quad_form(x[i].value - self.X.iloc[i], self.A).value for i in range(self.X.shape[0])])
+                obj = gp.quicksum((X_prime[i] - X[i]) @ self.A @ (X_prime[i] - X[i]) for i in range(self.X.shape[0]))
 
             else:
                 raise ValueError(f"Cost function {cost_function} not recognised")
 
-            recourse_x = x.value
-            recourse_prob = self.clf.predict_proba(x.value)[:, 1]
+            model.setObjective(obj, GRB.MINIMIZE)
 
-            return costs, recourse_x, recourse_prob
+            # Define constraints
+            model.addConstr(X_prime @ self.weights + self.bias >= 0, name="constraint")
 
-        elif backend == 'gurobi':
-            raise NotImplementedError("Gurobi backend not implemented yet")
+            # Solve model
+            model.optimize()
+
+            # Check if optimal
+            if model.status != GRB.OPTIMAL:
+                raise ValueError(
+                    f"Full recourse optimisation with cost function {cost_function} not optimal: {model.status}")
+
+            # Get optimal values
+            x_sol = model.getVars()
+            recourse_x = np.array([var.x for var in x_sol]).reshape(2, self.X.shape[0], self.X.shape[1])[1]
 
         else:
             raise ValueError(f"Backend {backend} not recognised")
+
+        # Calculate cost of recourse under true model
+        if cost_function == 'quadratic':
+            costs = np.sum((recourse_x - self.X.values) ** 2, axis=1)
+
+        elif cost_function == 'quad_form':
+            # costs = np.array(
+            #     [cp.quad_form(recourse_x[i] - self.X.iloc[i], self.A).value for i in range(self.X.shape[0])])
+            costs = np.einsum('ji,jk,ki->i', (self.X - recourse_x).T, self.A, (self.X - recourse_x).T)
+
+        else:
+            raise ValueError(f"Cost function {cost_function} not recognised")
+        recourse_prob = self.clf.predict_proba(recourse_x)[:, 1]
+
+        return costs, recourse_x, recourse_prob
 
     def _opt_partial_logistic(self, C: float, row: int, cost_function: str = 'quadratic', backend: str = 'cvxpy'):
         """
@@ -92,7 +131,8 @@ class Recourse:
         """
 
         if backend == 'cvxpy':
-            def attempt_optimisation(C: float, row: int, cost_function: str = 'quadratic', solver: str = "ECOS", verbose: bool = False):
+            def attempt_optimisation(C: float, row: int, cost_function: str = 'quadratic', solver: str = "ECOS",
+                                     verbose: bool = False):
 
                 # Define variables and objective function
                 x = cp.Variable(self.X_negative.shape[1])
@@ -116,11 +156,13 @@ class Recourse:
 
                 return x, prob, expr
 
-            x, problem, cost_expr = attempt_optimisation(C=C, row=row, cost_function=cost_function, solver="ECOS", verbose=False)
+            x, problem, cost_expr = attempt_optimisation(C=C, row=row, cost_function=cost_function, solver="ECOS",
+                                                         verbose=False)
 
             # Try again with verbose=True and a different solver if not optimal
             if problem.status != "optimal":
-                x, problem, cost_expr = attempt_optimisation(C=C, row=row, cost_function=cost_function, verbose=True, solver='SCS')
+                x, problem, cost_expr = attempt_optimisation(C=C, row=row, cost_function=cost_function, verbose=True,
+                                                             solver='SCS')
 
                 if problem.status != "optimal":
                     raise ValueError(f"Optimisation not optimal: {problem.status}")
@@ -128,7 +170,39 @@ class Recourse:
             return x.value, cost_expr.value, self.clf.predict_proba(x.value.reshape(1, -1))[0][1]
 
         elif backend == 'gurobi':
-            raise NotImplementedError("Gurobi backend not implemented yet")
+            model = gp.Model("partial_recourse")
+
+            # Create a 2D array of variables
+            x = model.addMVar(shape=self.X_negative.iloc[row].shape, vtype=GRB.CONTINUOUS, name="x", lb=-100, ub=100)
+            x_prime = model.addMVar(shape=self.X_negative.iloc[row].shape, vtype=GRB.CONTINUOUS, name="x0",
+                                    lb=self.X_negative.iloc[row], ub=self.X_negative.iloc[row])
+
+            # Define objective function
+            obj = x @ self.weights + self.bias
+            model.setObjective(obj, GRB.MAXIMIZE)
+
+            # Define constraints
+            if cost_function == 'quadratic':
+                cost_expr = ((x - x_prime) * (x - x_prime)).sum()
+
+            elif cost_function == 'quad_form':
+                cost_expr = (x - x_prime) @ self.A @ (x - x_prime)
+
+            else:
+                raise ValueError(f"Cost function {cost_function} not recognised")
+
+            # Solve model
+            model.addConstr(cost_expr <= C, name="constraint")
+            model.optimize()
+            recourse_x = x_prime.x
+
+            # Check if optimal
+            if model.status != GRB.OPTIMAL:
+                print(
+                    f"Partial recourse optimisation of row {row} with cost function {cost_function} not optimal, assuming no partial recourse actions taken at all")
+                recourse_x = self.X_negative.iloc[row].values
+
+            return recourse_x, float(cost_expr.getValue()), self.clf.predict_proba(recourse_x.reshape(1, -1))[0][1]
 
         else:
             raise ValueError(f"Backend {backend} not recognised")
@@ -190,7 +264,8 @@ class Recourse:
             float)  # eps used to make sure that 0.5 is not rounded down
         self.partial_recourse.index = self.X_negative.index
 
-    def compute_recourse(self, C: float, partial_recourse: bool = False, cost_function: str = 'quadratic', backend: str = 'cvxpy'):
+    def compute_recourse(self, C: float, partial_recourse: bool = False, cost_function: str = 'quadratic',
+                         backend: str = 'cvxpy'):
         """
         Compute full and partial recourse
         :param cost_function: Type of cost function to use
