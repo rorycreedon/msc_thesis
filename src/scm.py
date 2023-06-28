@@ -165,3 +165,49 @@ class StructuralCausalModel:
         scm.distributions = self.distributions.copy()
         scm.outcomes = self.outcomes.copy()
         return scm
+
+    def get_parents(self, col, root_only=True, i=1):
+        """
+        Return the full relationship for a given column.
+        :param col: column name
+        :param root_only: whether to return only root nodes
+        :param i: counter for weights (do not call)
+        :return: dictionary of weights of root nodes
+        """
+        if root_only:
+            weights = {}
+            if col in self.distributions.keys():
+                weights[col] = i
+                return weights
+
+            elif col in self.relationships.keys():
+                for parent in self.relationships[col].keys():
+                    weights.update(
+                        self.get_parents(parent, i * self.relationships[col][parent])
+                    )
+
+            elif col in self.outcomes.keys():
+                for parent in self.outcomes[col]["weights"].keys():
+                    weights.update(
+                        self.get_parents(
+                            parent, i * self.outcomes[col]["weights"][parent]
+                        )
+                    )
+
+            else:
+                raise ValueError("Column not found in SCM")
+
+            return weights
+
+        else:
+            if col in self.distributions.keys():
+                return {col: 1}
+
+            elif col in self.relationships.keys():
+                return self.relationships[col]
+
+            elif col in self.outcomes.keys():
+                return self.outcomes[col]["weights"]
+
+            else:
+                raise ValueError(f"Column {col} not found in SCM")

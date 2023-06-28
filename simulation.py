@@ -1,13 +1,13 @@
-from scm import StructuralCausalModel
-from recourse_model import Recourse
-from utils import get_near_psd, is_psd
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from sklearn.linear_model import LogisticRegression
 import matplotlib
+
+from src.scm import StructuralCausalModel
+from src.recourse_model import Recourse
+from src.utils import get_near_psd, is_psd
 
 matplotlib.use("TkAgg")
 pd.set_option("mode.chained_assignment", None)
@@ -106,7 +106,7 @@ def simulate_recourse(
         X_neg = scm.data[["X1", "X2", "X3", "X4"]]
         X_neg.index = scm.data["ID"]
         X_neg = X_neg.loc[((y_pred == 0) & (scm.data["recourse_eligible"] == 1)).values]
-        recourse_model = Recourse(X_neg, clf, A)
+        recourse_model = Recourse(X_neg, clf, A, scm)
         recourse_model.compute_recourse(
             C,
             partial_recourse=partial_recourse,
@@ -158,7 +158,7 @@ def plot(accuracy, class_positive, true_positives, C: float, cost_function: str)
 
 if __name__ == "__main__":
     scm = simulate_data(2500)
-    C = 0.1
+    C = 0.5
 
     accuracy, class_positive, true_positives = simulate_recourse(
         C=C,

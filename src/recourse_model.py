@@ -5,18 +5,27 @@ import cvxpy as cp
 import gurobipy as gp
 from gurobipy import GRB
 
+from scm import StructuralCausalModel
+
 
 class Recourse:
     """
     A class containing a simple algorithm for calculating recourse.
     """
 
-    def __init__(self, X: pd.DataFrame, clf, A: np.array = None):
+    def __init__(
+        self,
+        X: pd.DataFrame,
+        clf,
+        A: np.array = None,
+        scm: StructuralCausalModel = None,
+    ):
         """
         Initialize the class with the data and the model coefficients.
         :param X (pd.DataFrame): the negatively classified data
         :param clf (sklearn classifier): the model
         :param A (np.array): a PSD matrix
+        :param scm (StructuralCausalModel): the SCM
         """
         self.X = X
         self.clf = clf
@@ -25,10 +34,36 @@ class Recourse:
         self.partial_recourse = None
         self.X_negative = None
         self.recourse = None
+        self.scm = scm
         if A is None:
             self.A = np.linalg.inv(X.cov())
         else:
             self.A = A
+
+    def ground_truth_costs(self, X_prime):
+        cost = 0
+
+        for col in self.X.columns:
+            # actual change
+            change = X_prime[col] - self.X[col]
+
+            # work out expected change based on change of the parents
+            parents = self.scm.get_parents(col, root_only=False)
+            expected_change = 0
+            if col not in parents.keys():
+                for par in parents:
+                    if par in self.X.columns:
+                        expected_change += parents[par] * (X_prime[par] - self.X[par])
+
+            # actual change minus expected change
+            unexpected_change = change - expected_change
+
+            cost += (
+                self.A[self.X.columns.get_loc(col), self.X.columns.get_loc(col)]
+                * unexpected_change**2
+            )
+
+        return cost
 
     def _opt_full_logistic(
         self, cost_function: str = "quadratic", backend: str = "cvxpy"
@@ -270,9 +305,12 @@ class Recourse:
         self.recourse = pd.DataFrame(recourse_x, columns=self.X.columns)
 
         self.recourse.index = self.X.index
-        self.recourse["cost"] = recourse_cost
+        # self.recourse["cost"] = recourse_cost
+        self.recourse["ground_truth_cost"] = self.ground_truth_costs(
+            self.recourse[self.X.columns]
+        )
         # Returning original values of X is cost < C
-        self.recourse.update(self.X[self.recourse["cost"] > C])
+        self.recourse.update(self.X[self.recourse["ground_truth_cost"] > C])
         self.recourse["prob"] = self.clf.predict_proba(
             self.recourse[self.X.columns].values
         )[:, 1]
