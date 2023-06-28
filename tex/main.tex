@@ -1,0 +1,153 @@
+%%% Document packages
+\RequirePackage{fix-cm}                                                                 % Defines a specific font class to use. Fixes bf sc T1 class issue.
+\documentclass[a4paper, 12pt, twoside]{report}                                          % Defines the type of document to compile.
+\usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}                            % Controls the geometry of the page layout.
+
+%%% Fancy page setup
+\usepackage{lastpage}                                                                   % Has a macro that defines the total number of pages.
+\usepackage{fancyhdr}                                                                   % Controls the setup of the page.
+\pagestyle{fancy}                                                                       % Defines the usual page setup.
+\setlength{\headheight}{15pt}                                                           % Sets the header height to contain the header text.
+\fancyhead[L]{\nouppercase{\rightmark}}                                                 % Overwrites the default header so it's not fully capital.
+\fancyhead[R]{\nouppercase{\leftmark}}                                                  % Overwrites the default header so it's not fully capital.
+\fancyfoot[C]{}                                                                         % Set the center of the footer to be empty.
+\fancyfoot[LE,RO]{\thepage\ of\ \pageref{LastPage}}                                     % Page number counter. 
+\renewcommand{\headrulewidth}{0.4pt}                                                    % Sets the default header underline thickness.
+\renewcommand{\footrulewidth}{0.4pt}                                                    % Sets the default footer overline thickness.
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}}                           % Changes fancyheader[R] to "<Chapter Number>. <Chapter Title>" from "CHAPTER <Chapter Number>. <CHAPTER TITLE>". This saves space and looks nicer.
+\renewcommand{\sectionmark}[1]{\markright{\thesection.\ #1}}                            % Changes fancyheader[L] to "<Section Number>. <Section Title>" from "<Section Number>. <SECTION TITLE>". This saves space and looks nicer.
+
+%% Note to the user
+% In order to get a single sided document, you need to remove the `twoside` option from the documentclass command, and the [options] in line 14 need to be changed from [LE,RO] to [R].
+
+\fancypagestyle{plain}{\fancyhead{}\fancyhead[R]{\nouppercase{\leftmark}}}              % Whenever a new .tex file or chapter or page is included, the report class defaults to a plain page style. This changes the plain page style using fancyhdr to the style "fancy" defined above. Changes can be made in the second parameter.
+\fancypagestyle{declaration}{\fancyhead{}\fancyhead[R]{Declaration}}                    % Define adjustments for the declaration page(s).
+\fancypagestyle{abstract}{\fancyhead{}\fancyhead[R]{Abstract}}                          % Define adjustments for the abstract page(s).
+\fancypagestyle{is}{\fancyhead{}\fancyhead[R]{Impact Statement}}                        % Define adjustments for the impact statement page(s).
+\fancypagestyle{dedication}{\fancyhead{}\fancyhead[R]{Dedication}}                      % Define adjustments for the dedication page(s).
+\fancypagestyle{acknowledgements}{\fancyhead{}\fancyhead[R]{Acknowledgements}}          % Define adjustments for the acknowledgements page(s).
+\fancypagestyle{glossary}{\fancyhead{}\fancyhead[R]{Table of Acronyms}}                 % Define adjustments for the glossary page(s).
+\fancypagestyle{toc}{\fancyhead{}\fancyhead[R]{Contents}}                               % Define adjustments for the table of contents page(s).
+\fancypagestyle{lof}{\fancyhead{}\fancyhead[R]{List of Figures}}                        % Define adjustments for the list of figures page(s).
+\fancypagestyle{loa}{\fancyhead{}\fancyhead[R]{List of Algorithms}}                     % Define adjustments for the list of algorithms page(s).
+\fancypagestyle{lot}{\fancyhead{}\fancyhead[R]{List of Tables}}                         % Define adjustments for the list of tables page(s).
+
+%%% Text packages
+\usepackage[english]{babel}                                                             % Selects the language rules.
+%\usepackage[utf8]{inputenc}                                                             % Translates input encodings into LaTeX script. This doesn't work with LuaLaTeX which is my compiler of choice. This may be required for pdfLaTeX, which is Overleaf's default.
+\usepackage[T1]{fontenc}                                                                % Selects font encoding.
+\usepackage{textcomp}                                                                   % Supports companion fonts.
+\usepackage{pdflscape}                                                                  % Arranges PDF landscapely.
+\usepackage{afterpage}                                                                  % Deals with pdflscape package issues.
+\usepackage{siunitx}                                                                    % Deals with unit formatting.
+\usepackage{lmodern} \normalfont                                                               % Fixes the bf sc T1 class issue.
+\DeclareFontShape{T1}{lmr}{b}{sc}{<->ssub*cmr/bx/sc}{}                                  % Fixes the bf sc T1 class issue.
+\DeclareFontShape{T1}{lmr}{bx}{sc}{<->ssub*cmr/bx/sc}{}                                 % Fixes the bf sc T1 class issue.
+%\usepackage{helvet} \renewcommand{\familydefault}{\sfdefault}                          % Sets the font to Helvettica.
+%\usepackage{fontspec} \setmainfont{Arial}                                              % Sets the font to Arial.
+\usepackage{setspace}                                                                   % Customizes line spacing.
+%\onehalfspacing{}                                                                      % Use one and a half spacing.
+%\doublespacing{}                                                                       % Use double spacing.
+
+%% Note to the user
+% The UCL guidelines suggest that ("should") the lines should be 1.5x or 2x spaced. Uncomment (remove the corresponding "%" before the line) to use (line 48 for 1.5x spacing, 49 for 2x spacing).
+% The UCL guidelines enforce that ("must be") margins at the binding edge must be not be less than 40 mm (1.5 inches) and other margins not less than 20 mm (.75 inches). In this document, both left and right margins are set to 40mm, and top and bottom to 20mm. If the user wants just the binding edge to be 40mm, and the other to be 20mm (or more), they should change the "right" parameter of the geometry package options (line 4).
+% The UCL guidelines suggest that ("recommend") the minimum font size is 12. This can be changed in the \documentclass [options] selection (line 3). In this document, the default to 12pt.
+% The UCL guidelines suggest that ("recommend") the font is either Arial or Helvettica. I have included ways of using those fonts in the document above, uncomment to use. (line 45 for Helvettica, 46 for Arial).
+% The Arial font does not ship by default with Linux distros. In order to get this font on Linux (if compiling locally, Overleaf should have this as default), use the following commands:
+% wget http://www.itzgeek.com/msttcore-fonts-2.0-3.noarch.rpm
+% rpm -Uvh msttcore-fonts-2.0-3.noarch.rpm
+% The last command will likely need to be run as admin (using sudo). The -Uvh option updates the package if available, installs otherwise.
+% The margins have been set using the geometry package options. I have selected the margins to be as narrow as possible to comply with the guidelines, but this can be changed.
+
+%%% Bibliography packages
+\usepackage[style=authoryear,sorting=nyt,url=true,arxiv=abs,nohashothers=false, backend=biber, natbib=true]{biblatex} % Controls the bibliography style and sorting.
+\addbibresource{bibliography.bib}                                                       % Imports the bibliography.
+\usepackage[hidelinks]{hyperref}                                                        % Hyperlinks in citation URLs, and hides their colour in the pdf.
+
+%%% Custom referencing commands
+\newcommand{\secref}[1]{Sec.\ \ref{#1}}                                                 % Creates a reference to a section as Sec. [].
+\newcommand{\equatref}[1]{Eq.\ \eqref{#1}}                                              % Creates a reference to a section as Eq. [].
+\newcommand{\tabref}[1]{Table\ \ref{#1}}                                                % Creates a reference to a section as Table [].
+
+%%% Math packages
+\usepackage{amsmath, amssymb}                                                           % Defines tools required for math mode.
+\usepackage{amsfonts}                                                                   % Defines extended font set for math mode.
+%\usepackage{bm}                                                                        % Makes math symbols bold in math mode.
+\usepackage{eucal}                                                                      % Allows for mathcal typesetting. 
+\usepackage{breqn}                                                                      % Can split equations over multiple lines, allows for $$ with inline math.
+\numberwithin{equation}{section}
+
+%%% Image packages
+\usepackage{graphicx}                                                                   % Enhanced graphics support.
+\usepackage{float}                                                                      % Improves figure and table positioning.
+\usepackage{caption}                                                                    % Custom captions (orientations mainly).
+\usepackage{csquotes}                                                                   % Advanced inline and display quotations.
+\usepackage{subcaption}                                                                 % Applies for subfigures.
+\usepackage{rotating}                                                                   % Allows figures to be rotated.
+\usepackage[export]{adjustbox}
+
+%%% Image listing directory
+\graphicspath{{Figures/}}                                                               % Sets the directory of the images so document structure is tidier.
+
+%%% Feynman diagram package
+%\usepackage[compat=1.1.0]{tikz-feynman}                                                 % Can define and use Feynman diagrams. Note - if this is not compiling well using pdfLaTeX use LuaLaTeX.
+
+%%% Text packages
+\usepackage{multicol}                                                                   % Allows multiple columns to be used.
+\usepackage{gensymb}                                                                    % Provides generic commands for both text and math modes, like celsius, degree etc.
+\usepackage{listings}                                                                   % Provides source code in LaTeX, which is not processed. 
+
+%%% Algorithm packages
+\usepackage[ruled,vlined]{algorithm2e}                                                  % Imports a framework for defining algorithms.
+
+%%% Table packages
+\usepackage{ltablex}                                                                    % Combines longtable (multi-page tables with varying geometric properties) into tabularx environments.
+\usepackage{makecell}                                                                   % Allows splitting a single cell over many rows using \makecell.
+\usepackage{multirow}                                                                   % Allows multiple rows to be combined in a table.
+%\usepackage{multicolumn}                                                               % Allows multiple columns to be combined in a table.
+\usepackage{tabularx}                                                                   % Creates tables that can use the alignment as is needed.
+\usepackage{booktabs}                                                                   % Creates better quality tables.
+
+%%% Acronym package
+\usepackage[nonumberlist, postdot, nogroupskip, toc]{glossaries-extra}                  % Allows for glossaries and acronyms. Note that in other languages, this is called (e.g.) glossaries-polish.
+\usepackage{glossary-longbooktabs}                                                      % Allows for the chosen style of glossary.
+\makenoidxglossaries{}                                                                  % Creates a glossary.
+\loadglsentries{acronym.tex}                                                            % Imports glossary entries from an external file.
+\setglossarystyle{long-booktabs}                                                        % Sets a style of glossary. More styles can be found in the glossaries-extra manual.
+
+%%% Document development
+\usepackage[colorinlistoftodos]{todonotes}                                              % used to annotate the documents and make notes about what needs doing and what doesn't.
+
+%%% Replacement fields
+% Note - make sure that you use the space command `\ ` between each word here. newcommand treats spaces in the definitions as terminations.
+\newcommand{\authorName}{\textbf{Rory Creedon}}                                         % Replace the \textbf command and its contents with your name.
+\newcommand{\primarySupervisor}{\textbf{Colin Rowat}}                           % Replace the \textbf command and its contents with the name of your primary supervisor.
+\newcommand{\secondarySupervisor}{\textbf{Matthew Caldwell}}                       % Replace the \textbf command and its contents with the name of your secondary supervisor.
+\newcommand{\examiningCommittee}{\textbf{EXAMINING COMMITTEE}}                         % Replace the \textbf command and its contents with the name of the examining comittee.
+\newcommand{\wordCount}{\textbf{WORD COUNT}}                                           % Replace the \textbf command and its contents with the word count.
+\newcommand{\submissionDate}{\textbf{\today}}                                 % Replace the \textbf command and its contents with the submission date.
+\newcommand{\thesisTitle}{\textbf{Incorporating Revealed Preferences in Algorithmic Recourse}}                                       % Replace the \textbf command and its contents with the title of your thesis.
+\newcommand{\department}{\textbf{Department of Computer Science}}                                        % Replace the \textbf command and its contents with the name of your department.
+\newcommand{\signatureFile}{example-image-a}                                            % Replace the \textbf command and its contents with the directory of the image of your signature.
+
+\begin{document}
+\pagenumbering{arabic}
+\include{./Title/title.tex}  
+
+
+\include{./Abstract/abstract.tex}
+
+\clearpage
+{
+  \pagestyle{toc}
+  \tableofcontents{}
+  \thispagestyle{toc}
+}
+\clearpage
+
+\include{./Theory/Theory.tex}
+\include{./Experiment/Experiment.tex}
+
+\printbibliography[title={References}, heading=bibintoc]
+\end{document}

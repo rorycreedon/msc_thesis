@@ -57,7 +57,6 @@ def simulate_recourse(
     # Generate data
     data = scm.generate_data()
     X = data[["X1", "X2", "X3", "X4"]]
-    y = data["Y_true"]
     scm.data["Y"] = scm.data["Y_true"].copy()
 
     # Define lists to store results
@@ -66,7 +65,9 @@ def simulate_recourse(
     true_positives = []
 
     # Make matrix for quadratic form cost function
-    A = np.triu((1.5 * np.eye(X.shape[1]) - X.corr() / 2).values)
+    A = np.linalg.inv(
+        X.cov()
+    )  # using inverse of covariance matrix as A (Mahalanobis distance)
     if not is_psd(A):
         print("A is not PSD, getting nearest PSD matrix")
         A = get_near_psd(A)
@@ -157,17 +158,7 @@ def plot(accuracy, class_positive, true_positives, C: float, cost_function: str)
 
 if __name__ == "__main__":
     scm = simulate_data(2500)
-    C = 0.02
-
-    accuracy, class_positive, true_positives = simulate_recourse(
-        C=C,
-        scm=scm.copy(),
-        iterations=10,
-        partial_recourse=False,
-        cost_function="quad_form",
-        backend="gurobi",
-    )
-    plot(accuracy, class_positive, true_positives, C=C, cost_function="quad_form")
+    C = 0.1
 
     accuracy, class_positive, true_positives = simulate_recourse(
         C=C,
@@ -178,3 +169,13 @@ if __name__ == "__main__":
         backend="cvxpy",
     )
     plot(accuracy, class_positive, true_positives, C=C, cost_function="quadratic")
+
+    accuracy, class_positive, true_positives = simulate_recourse(
+        C=C,
+        scm=scm.copy(),
+        iterations=10,
+        partial_recourse=False,
+        cost_function="quad_form",
+        backend="cvxpy",
+    )
+    plot(accuracy, class_positive, true_positives, C=C, cost_function="quad_form")

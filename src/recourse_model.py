@@ -26,7 +26,7 @@ class Recourse:
         self.X_negative = None
         self.recourse = None
         if A is None:
-            self.A = np.triu((2 * np.eye(self.X.shape[1]) - X.corr() / 2).values)
+            self.A = np.linalg.inv(X.cov())
         else:
             self.A = A
 
