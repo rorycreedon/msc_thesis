@@ -53,6 +53,7 @@ def simulate_recourse(
     partial_recourse: bool = True,
     cost_function: str = "quadratic",
     backend: str = "cvxpy",
+    n_rounds: int = 10,
 ):
     # Generate data
     data = scm.generate_data()
@@ -63,14 +64,14 @@ def simulate_recourse(
     accuracy = []
     class_positive = []
     true_positives = []
+    costs = []
 
-    # Make matrix for quadratic form cost function
-    A = np.linalg.inv(
-        X.cov()
-    )  # using inverse of covariance matrix as A (Mahalanobis distance)
-    if not is_psd(A):
-        print("A is not PSD, getting nearest PSD matrix")
-        A = get_near_psd(A)
+    # fix M if necessary
+    # M = np.linalg.inv(X.cov())
+    M = np.eye(4)
+    if not is_psd(M):
+        print("M is not PSD, getting nearest PSD matrix")
+        M = get_near_psd(M)
 
     # Define train and test sets by IDs
     train_ids = np.random.choice(X.index, size=int(0.5 * len(X)), replace=False)
@@ -106,22 +107,28 @@ def simulate_recourse(
         X_neg = scm.data[["X1", "X2", "X3", "X4"]]
         X_neg.index = scm.data["ID"]
         X_neg = X_neg.loc[((y_pred == 0) & (scm.data["recourse_eligible"] == 1)).values]
-        recourse_model = Recourse(X_neg, clf, A, scm)
+        recourse_model = Recourse(X_neg, clf, M, scm)
         recourse_model.compute_recourse(
             C,
             partial_recourse=partial_recourse,
             cost_function=cost_function,
             backend=backend,
+            n_rounds=n_rounds if i == 1 else 0,
         )
 
         if (recourse_model.recourse.Y == 1).all():
             print("finished")
-            return accuracy, class_positive, true_positives
+            return accuracy, class_positive, true_positives, costs
 
         # Calculate proportion of test set that is positively classified
         class_positive.append(np.sum(y_pred[test_ids] == 1) / len(test_ids))
         true_positives.append(np.sum(y_true == 1) / len(y_true))
 
+        # Costs
+        costs.append(
+            recourse_model.recourse[["ground_truth_cost", "cost"]].corr().iloc[0, 1]
+        )
+        print(recourse_model.recourse[["ground_truth_cost", "cost"]].head())
         # Update the SCM with the new data
         scm.append_data(
             recourse_model.recourse[["X1", "X2", "X3", "X4", "Y"]],
@@ -131,12 +138,12 @@ def simulate_recourse(
 
         assert max(scm.data["ID"]) <= scm.N
 
-    return accuracy, class_positive, true_positives
+    return accuracy, class_positive, true_positives, costs
 
 
-def plot(accuracy, class_positive, true_positives, C: float, cost_function: str):
+def plot(accuracy, class_positive, true_positives, costs, C: float, cost_function: str):
     # Setup subplots
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    fig, ax = plt.subplots(1, 3, figsize=(12, 5))
 
     # Plot accuracy
     ax[0].plot(accuracy, color="tab:blue")
@@ -145,6 +152,10 @@ def plot(accuracy, class_positive, true_positives, C: float, cost_function: str)
     # Plot proportion of positively classified and true positives
     ax[1].plot(class_positive, color="tab:green", label="Positively classified")
     ax[1].plot(true_positives, color="tab:orange", label="True positive")
+
+    # Plot costs
+    ax[2].plot(costs, color="tab:red", label="Cost correlation")
+    ax[2].set_title("Correlation between ground truth and modeled cost")
 
     # Set titles and legend
     ax[1].set_title("% Positive Class")
@@ -157,25 +168,42 @@ def plot(accuracy, class_positive, true_positives, C: float, cost_function: str)
 
 
 if __name__ == "__main__":
-    scm = simulate_data(2500)
+    scm = simulate_data(250)
     C = 0.5
+    iterations = 10
 
-    accuracy, class_positive, true_positives = simulate_recourse(
+    # accuracy, class_positive, true_positives, costs = simulate_recourse(
+    #     C=C,
+    #     scm=scm.copy(),
+    #     iterations=iterations,
+    #     partial_recourse=False,
+    #     cost_function="quadratic",
+    #     backend="cvxpy",
+    # )
+    # plot(accuracy, class_positive, true_positives, C=C, cost_function="quadratic")
+
+    accuracy, class_positive, true_positives, costs = simulate_recourse(
         C=C,
         scm=scm.copy(),
-        iterations=10,
-        partial_recourse=False,
-        cost_function="quadratic",
-        backend="cvxpy",
-    )
-    plot(accuracy, class_positive, true_positives, C=C, cost_function="quadratic")
-
-    accuracy, class_positive, true_positives = simulate_recourse(
-        C=C,
-        scm=scm.copy(),
-        iterations=10,
+        iterations=iterations,
         partial_recourse=False,
         cost_function="quad_form",
         backend="cvxpy",
+        n_rounds=10,
     )
-    plot(accuracy, class_positive, true_positives, C=C, cost_function="quad_form")
+    plot(
+        accuracy, class_positive, true_positives, costs, C=C, cost_function="quad_form"
+    )
+
+    accuracy, class_positive, true_positives, costs = simulate_recourse(
+        C=C,
+        scm=scm.copy(),
+        iterations=iterations,
+        partial_recourse=False,
+        cost_function="quad_form",
+        backend="cvxpy",
+        n_rounds=0,
+    )
+    plot(
+        accuracy, class_positive, true_positives, costs, C=C, cost_function="quad_form"
+    )

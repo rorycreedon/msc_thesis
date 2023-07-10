@@ -4,8 +4,11 @@ from multiprocessing import Pool
 import cvxpy as cp
 import gurobipy as gp
 from gurobipy import GRB
+from scipy.stats import norm
 
 from scm import StructuralCausalModel
+from cost_learning import CostLearn
+from utils import is_psd, get_near_psd
 
 
 class Recourse:
@@ -17,14 +20,14 @@ class Recourse:
         self,
         X: pd.DataFrame,
         clf,
-        A: np.array = None,
+        M: np.ndarray = None,
         scm: StructuralCausalModel = None,
     ):
         """
         Initialize the class with the data and the model coefficients.
         :param X (pd.DataFrame): the negatively classified data
         :param clf (sklearn classifier): the model
-        :param A (np.array): a PSD matrix
+        :param M (np.array): a PSD matrix
         :param scm (StructuralCausalModel): the SCM
         """
         self.X = X
@@ -35,35 +38,44 @@ class Recourse:
         self.X_negative = None
         self.recourse = None
         self.scm = scm
-        if A is None:
-            self.A = np.linalg.inv(X.cov())
+        if M is None:
+            self.M = np.linalg.inv(X.cov())
         else:
-            self.A = A
+            self.M = M
 
-    def ground_truth_costs(self, X_prime):
-        cost = 0
+    def ground_truth_costs(self, X_prime, causal=True):
+        if causal:
+            cost = 0
 
-        for col in self.X.columns:
-            # actual change
-            change = X_prime[col] - self.X[col]
+            for col in self.X.columns:
+                # actual change
+                change = X_prime[col] - self.X[col]
+                assert not np.isnan(change).any()
 
-            # work out expected change based on change of the parents
-            parents = self.scm.get_parents(col, root_only=False)
-            expected_change = 0
-            if col not in parents.keys():
-                for par in parents:
-                    if par in self.X.columns:
-                        expected_change += parents[par] * (X_prime[par] - self.X[par])
+                # work out expected change based on change of the parents
+                parents = self.scm.get_parents(col, root_only=False)
+                expected_change = 0
+                if col not in parents.keys():
+                    for par in parents:
+                        if par in self.X.columns:
+                            expected_change += parents[par] * (
+                                X_prime[par] - self.X[par]
+                            )
 
-            # actual change minus expected change
-            unexpected_change = change - expected_change
+                # actual change minus expected change
+                unexpected_change = change - expected_change
 
-            cost += (
-                self.A[self.X.columns.get_loc(col), self.X.columns.get_loc(col)]
-                * unexpected_change**2
+                cost += (0.5 * unexpected_change + 2 + 5 * np.sin(change)) ** 4
+
+            return cost
+
+        else:
+            return np.einsum(
+                "ji,jk,ki->i",
+                (self.X - X_prime).T,
+                np.eye(self.M.shape[0]),
+                (self.X - X_prime).T,
             )
-
-        return cost
 
     def _opt_full_logistic(
         self, cost_function: str = "quadratic", backend: str = "cvxpy"
@@ -83,7 +95,7 @@ class Recourse:
 
             elif cost_function == "quad_form":
                 quad_forms = [
-                    cp.quad_form(x[i] - self.X.iloc[i], self.A)
+                    cp.quad_form(x[i] - self.X.iloc[i], self.M)
                     for i in range(self.X.shape[0])
                 ]
                 expr = cp.sum(quad_forms)
@@ -129,7 +141,7 @@ class Recourse:
 
             elif cost_function == "quad_form":
                 obj = gp.quicksum(
-                    (X_prime[i] - X[i]) @ self.A @ (X_prime[i] - X[i])
+                    (X_prime[i] - X[i]) @ self.M @ (X_prime[i] - X[i])
                     for i in range(self.X.shape[0])
                 )
 
@@ -162,9 +174,9 @@ class Recourse:
 
         elif cost_function == "quad_form":
             # costs = np.array(
-            #     [cp.quad_form(recourse_x[i] - self.X.iloc[i], self.A).value for i in range(self.X.shape[0])])
+            #     [cp.quad_form(recourse_x[i] - self.X.iloc[i], self.M).value for i in range(self.X.shape[0])])
             costs = np.einsum(
-                "ji,jk,ki->i", (self.X - recourse_x).T, self.A, (self.X - recourse_x).T
+                "ji,jk,ki->i", (self.X - recourse_x).T, self.M, (self.X - recourse_x).T
             )
 
         else:
@@ -206,7 +218,7 @@ class Recourse:
                     expr = cp.sum_squares(x - self.X_negative.iloc[row].values)
 
                 elif cost_function == "quad_form":
-                    expr = cp.quad_form(x - self.X_negative.iloc[row].values, self.A)
+                    expr = cp.quad_form(x - self.X_negative.iloc[row].values, self.M)
 
                 else:
                     raise ValueError(f"{cost_function} not recognised")
@@ -266,7 +278,7 @@ class Recourse:
                 cost_expr = ((x - x_prime) * (x - x_prime)).sum()
 
             elif cost_function == "quad_form":
-                cost_expr = (x - x_prime) @ self.A @ (x - x_prime)
+                cost_expr = (x - x_prime) @ self.M @ (x - x_prime)
 
             else:
                 raise ValueError(f"Cost function {cost_function} not recognised")
@@ -305,7 +317,7 @@ class Recourse:
         self.recourse = pd.DataFrame(recourse_x, columns=self.X.columns)
 
         self.recourse.index = self.X.index
-        # self.recourse["cost"] = recourse_cost
+        self.recourse["cost"] = recourse_cost
         self.recourse["ground_truth_cost"] = self.ground_truth_costs(
             self.recourse[self.X.columns]
         )
@@ -371,12 +383,28 @@ class Recourse:
         )  # eps used to make sure that 0.5 is not rounded down
         self.partial_recourse.index = self.X_negative.index
 
+    def learn_costs(self, n_rounds: int):
+        cost_learner = CostLearn(
+            self.recourse[self.X.columns],
+            weights=self.weights,
+            bias=self.bias,
+            n_rounds=n_rounds,
+        )
+        cost_learner.gen_pairwise_comparisons()
+        cost_learner.eval_comparisons(self.ground_truth_costs)
+        M = cost_learner.solve(verbose=False)
+        if not is_psd(M):
+            print("M is not PSD, getting nearest PSD matrix")
+        M = get_near_psd(M)
+        self.M = M
+
     def compute_recourse(
         self,
         C: float,
         partial_recourse: bool = False,
         cost_function: str = "quadratic",
         backend: str = "cvxpy",
+        n_rounds: int = 10,
     ):
         """
         Compute full and partial recourse
@@ -384,11 +412,14 @@ class Recourse:
         :param C: Cost threshold for partial recourse
         :param partial_recourse: Whether to compute partial recourse
         :param backend: Backend to use for optimisation. Currently, cvxpy and gurobi supported
+        :param n_rounds: Number of rounds to use for cost learning
         :return: None
         """
 
         # Compute recourse
         self.optimise_full_recourse(C=C, cost_function=cost_function, backend=backend)
+        if n_rounds > 0:
+            self.learn_costs(n_rounds=n_rounds)
 
         if partial_recourse:
             self.optimise_partial_recourse(
