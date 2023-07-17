@@ -1,0 +1,88 @@
+\chapter{Literature Review}
+
+\section{Algorithmic Recourse}
+
+\subsection{Motivation}
+Description of what algorithmic recourse is and why it is important - use of automatic decision making, GDPR \citep{voigtEUGeneralData2017}. Mention psychological factors causing humans to prefer recourse to explanations (\textbf{to find paper(s)}: was mentioned by Ruth Byrne in \href{https://icml.cc/virtual/2021/11705}{ICML panel session}, from 25 minutes onwards).
+
+
+\subsection{Problem Set-up}
+\begin{itemize}
+	\item Description of the original set-up and problem - i.e., 
+	\begin{equation} \label{eq:recourse_setup}
+		 \mathbf{x}^f = \argmax_{\mathbf{x}' \in \mathbf{\mathcal{X}}} f(\mathbf{x}') - c(\mathbf{x},\mathbf{x}')
+	\end{equation} 
+	\item Description of the causal recourse set-up and problem \citep{karimiAlgorithmicRecourseCounterfactual2021}
+	\item Cost and distance functions, actionability of features
+\end{itemize}
+
+
+\subsection{Recourse methods}
+Run through methods mentioned in survey paper \citep{karimiSurveyAlgorithmicRecourse2022} and also those implemented in \href{https://carla-counterfactual-and-recourse-library.readthedocs.io/en/latest/recourse.html}{\texttt{CARLA}}.
+
+
+
+
+
+\section{Strategic Classification}
+
+\subsection{Standard Strategic Classification}
+
+
+\begin{itemize}
+	\item Begin with \textcite{hardtStrategicClassification2016} and explain the set-up as a Stackelberg game with an example.
+	
+	\item Algorithms proposed for this task include  \textcite{levanonStrategicClassificationMade2021}, \textcite{chenLearningStrategyAwareLinear2020} and \textcite{ahmadiClassificationStrategicAgents2022}. 
+	
+	\item Mention extensions such as:
+	
+	\item Where the cost function is completely unknown to the lender \citep{dongStrategicClassificationRevealed2018}
+	
+	\item Where the response of lenders to the classifier is noisy \citep{jagadeesanAlternativeMicrofoundationsStrategic2021}.
+	
+	\item Where borrowers do not know the decision rule \citep{ghalmeStrategicClassificationDark2021, bechavodInformationDiscrepancyStrategic2022}.
+	
+	\item Where the incentives of lender and borrower align (e.g., recommender systems) \citep{levanonGeneralizedStrategicClassification2022}.
+	
+	\item Where the cost functions are linked by graphs for the borrowers \citep{eilatStrategicClassificationGraph2023}.
+	
+	\item Where the borrowers act first \citep{nairStrategicRepresentation2022}.
+	
+	\item Where the borrowers and lenders update at different rates \citep{zrnicWhoLeadsWho2021}.
+\end{itemize}
+
+\subsection{Causal Strategic Classification}
+A review of the \textit{causal} strategic classification literature, which focuses more on causal identification of features which are strategically manipulated (without causing an improvement in underlying credit `worthiness') and features which causally affect credit `worthiness'.
+
+
+
+\section{Revealed Preferences}
+A brief primer on axioms of revealed preferences, and on the literature of \textit{learning from revealed preferences}. To briefly discuss:
+
+\begin{itemize}
+	\item Original paper by \textcite{beigmanLearningRevealedPreference2006}, where principal issues a list of prices and the agent purchases different quantities of each good. Over time, the principal learns from the different purchase amounts (which are the revealed preferences).
+	\item When prices are of goods and budget of the agent are drawn from an unknown distribution \citep{zadimoghaddamEfficientlyLearningRevealed2012, balcanLearningEconomicParameters2014}.
+	\item Where the principal is maximising profit \citep{aminOnlineLearningProfit2015, rothWatchLearnOptimizing2016}.
+	\item Move onto a more detailed discussion of \textcite{dongStrategicClassificationRevealed2018}.
+\end{itemize}
+
+
+\section{Pairwise Metric Learning}
+\begin{itemize}
+	\item Start with an introduction of what pairwise metric learning is and key papers.
+	\item Move onto specific proposed adaptation/simplification of the learning algorithm proposed in \textcite{canalOneAllSimultaneous2022}.
+\end{itemize}
+
+
+\section{Canonical Datasets}
+The canonical datasets used in the algorithmic recourse and strategic classification literature include:
+
+\begin{itemize}
+	\item \href{https://archive.ics.uci.edu/dataset/2/adult}{\texttt{Adult}} - dataset to predict whether someone earns over \$50,000 or more.
+	\item \href{https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data}{\texttt{German Credit}} - dataset identifies people as either good or bad credit risks.
+	\item \href{https://community.fico.com/s/explainable-machine-learning-challenge}{\texttt{FICO-HELOC}} - dataset of HELOC applications, where applicants have applied for a credit line between \$5,000 and \$150,000. Outcome variable is whether they are a good or bad credit risk.
+	\item \href{https://www.kaggle.com/datasets/shebrahimi/financial-distress}{\texttt{Finance}} - dataset to predict financial distress for a number of companies. There are several over different time periods for each company.
+\end{itemize}
+
+
+
