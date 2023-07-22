@@ -6,7 +6,7 @@ from sklearn.linear_model import LogisticRegression
 import matplotlib
 
 from src.scm import StructuralCausalModel
-from src.recourse_model import Recourse
+from src.recourse_model import LearnedCostsRecourse
 from src.utils import get_near_psd, is_psd
 
 matplotlib.use("TkAgg")
@@ -78,7 +78,9 @@ def simulate_recourse(
     test_ids = np.array([i for i in X.index if i not in train_ids])
 
     # Initialise recourse class
-    recourse_model = Recourse(X, M_ground_truth=ground_truth_M, n_rounds=n_rounds)
+    recourse_model = LearnedCostsRecourse(
+        X, M_ground_truth=ground_truth_M, n_rounds=n_rounds
+    )
 
     # Iterate over each round
     for i in range(1, iterations + 1):

@@ -1,11 +1,9 @@
 from sklearn.linear_model import LogisticRegression
 import numpy as np
 
-from src.recourse_model import Recourse
+from src.recourse_model import LearnedCostsRecourse
 from src.utils import get_near_psd, is_psd
-from src.scm import StructuralCausalModel
-from src.cost_learning import CostLearn
-from simulation import simulate_data, simulate_recourse
+from simulation import simulate_data
 
 
 def sim(N):
@@ -51,7 +49,7 @@ def sim(N):
     X_neg = scm.data[["X1", "X2", "X3", "X4"]]
     X_neg.index = scm.data["ID"]
     X_neg = X_neg.loc[((y_pred == 0) & (scm.data["recourse_eligible"] == 1)).values]
-    recourse_model = Recourse(X_neg, M_ground_truth=X.cov().values)
+    recourse_model = LearnedCostsRecourse(X_neg, M_ground_truth=X.cov().values)
     recourse_model.update_classifier(clf)
     recourse_model.compute_recourse(
         C=np.inf,

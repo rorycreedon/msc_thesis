@@ -8,7 +8,7 @@ import sklearn
 from utils import is_psd, get_near_psd
 
 
-class Recourse:
+class LearnedCostsRecourse:
     """
     A class for calculating recourse with learned costs.
     """
