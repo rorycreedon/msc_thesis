@@ -12,8 +12,6 @@ To solve for $\mathbf{x}^f$ effectively, this is typically handled as a convex o
 
 \section{Mahalanobis distance}
 
-\subsection{Overview of Mahalanobis distance}
-
 The Mahalanobis distance between the vector $\mathbf{x}$ and the vector $\mathbf{y}$ is defined in equation \ref{eq:mahalanbobis_distance}, where $M$ is a positive semi-definite matrix.
 
 \begin{equation} \label{eq:mahalanbobis_distance}
@@ -24,15 +22,24 @@ The matrix $\mathbf{M}$ captures different distances relationships between the f
 
 \subsection{Learning the Mahalanobis distance}
 
-In order to use the Mahalanobis distance as a cost function, we must learn the matrix $\mathbf{M}$. In this set-up, each individual $k$ with original features $\mathbf{x}_k$ is presented with $N$ recourse options $(\mathbf{x}_{kn}^a, \mathbf{x}_{kn}^b)$ and responds with $y_{kn}=-1$ if offering $a$ is preferred (preferences are defined by the ground truth cost function) and $y_{kn}=1$ if offering $b$ is preferred. The optimisation problem presented in \textcite{canalOneAllSimultaneous2022} is simplified (to only conduct metric learning, as opposed to metric and preference learning) in equation \ref{eq:mahalanobis_optimisation}, where $\ell$ represents either the hinge or logistic loss function.
+In order to use the Mahalanobis distance as a cost function, we must learn the matrix $\mathbf{M}$. In this set-up, each individual $k$ with original features $\mathbf{x}_k$ is presented with $N$ recourse options $(\mathbf{x}_{kn}^a, \mathbf{x}_{kn}^b)$ and responds with $y_{kn}=-1$ if offering $a$ is preferred (preferences are defined by the ground truth cost function) and $y_{kn}=1$ if offering $b$ is preferred. The optimisation problem presented in \textcite{canalOneAllSimultaneous2022} is simplified (to only conduct metric learning, as opposed to metric and preference learning) in equation \ref{eq:mahalanobis_non_convex}, where $\ell$ represents either the hinge or logistic loss function.
 
-\begin{align} \label{eq:mahalanobis_optimisation}
+\begin{align} \label{eq:mahalanobis_non_convex}
 	\min_{\mathbf{M}} & \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell \bigg( y_{kn} \big(|| \mathbf{x}_k - \mathbf{x}_{kn}^a ||^2_{\mathbf{M}} - || \mathbf{x}_k - \mathbf{x}_{kn}^b ||^2_{\mathbf{M}} \big) \bigg) \\	
 	\text{s.t. } & \mathbf{M} \succeq 0, \nonumber \\
-	& ||\mathbf{M}||_F \leq \lambda_F \nonumber
+	& ||\mathbf{M}||_F \leq \lambda_M \nonumber
 \end{align}
 
-The term $\lambda_F$ is used to regularise the matrix $\mathbf{M}$. This is a convex problem that can be solved using an convex optimisation solver such as SCS \citep{odonoghueOperatorSplittingHomogeneous2021}.
+The term $\lambda_F$ is used to regularise the matrix $\mathbf{M}$. However, this is a non-convex problem due to the squared Mahalanobis terms. Therefore, to make this problem convex, we must use a substitution $\mathbf{v}_k = -2\mathbf{Mx}_k$. The optimisation problem we solve is presented in equation \ref{eq:mahalanobis_convex}.
+
+\begin{align} \label{eq:mahalanobis_convex}
+	\min_{\mathbf{M}, \{ \mathbf{v}_k\}^K_{k=1}} &  \sum_{k=1}^K \sum_{n=1}^N \ell \bigg( y_{kn} \big(||\mathbf{x}_{kn}^a ||^2_{\mathbf{M}} - ||\mathbf{x}_{kn}^b ||^2_{\mathbf{M}} + \mathbf{v}_k^T (\mathbf{x}_{kn}^a - \mathbf{x}_{kn}^b) \big) \bigg) \\
+	\text{s.t. } & \mathbf{M} \succeq 0, \nonumber \\
+	& ||\mathbf{M}||_F \leq \lambda_M \nonumber
+\end{align}
+
+
+This is a convex problem that can be solved using an convex optimisation solver such as SCS \citep{odonoghueOperatorSplittingHomogeneous2021}.
 
 
 

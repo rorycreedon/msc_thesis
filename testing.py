@@ -21,9 +21,7 @@ def sim(N):
     true_positives = []
 
     # Make matrix for quadratic form cost function
-    M = np.linalg.inv(
-        X.cov()
-    )  # using inverse of covariance matrix as A (Mahalanobis distance)
+    M = X.cov().values
     if not is_psd(M):
         print("A is not PSD, getting nearest PSD matrix")
         M = get_near_psd(M)
@@ -53,22 +51,36 @@ def sim(N):
     X_neg = scm.data[["X1", "X2", "X3", "X4"]]
     X_neg.index = scm.data["ID"]
     X_neg = X_neg.loc[((y_pred == 0) & (scm.data["recourse_eligible"] == 1)).values]
-    recourse_model = Recourse(X_neg, clf, M, scm)
+    recourse_model = Recourse(X_neg, M_ground_truth=X.cov().values)
+    recourse_model.update_classifier(clf)
     recourse_model.compute_recourse(
         C=np.inf,
-        partial_recourse=False,
-        cost_function="quad_form",
-        backend="cvxpy",
+        verbose=False,
+        loss_function="hinge",
     )
 
-    return recourse_model, X_neg
+    return recourse_model, X_neg, X.cov().values
 
 
 if __name__ == "__main__":
-    recourse_model, X_neg = sim(2500)
-    cost_learner = CostLearn(X_neg, recourse_model.weights, recourse_model.bias, 10)
-    cost_learner.gen_pairwise_comparisons()
-    cost_learner.eval_comparisons(recourse_model.ground_truth_costs)
-    cost_learner.solve(verbose=True)
+    recourse_model, X_neg, ground_truth = sim(2500)
+    # cost_learner = CostLearn(X_neg, recourse_model.weights, recourse_model.bias, 10)
+    # cost_learner.gen_pairwise_comparisons()
+    #
+    # ground_truth = X_neg.cov().values
+    #
+    # cost_learner.eval_comparisons(
+    #     recourse_model.ground_truth_costs_static,
+    #     causal=False,
+    #     M=ground_truth,
+    # )
+    # cost_learner.solve(verbose=False, loss_function="max_margin")
 
-    print(is_psd(cost_learner.M.value))
+    print(f"Is PSD?: {is_psd(recourse_model.M)}")
+    print(recourse_model.M)
+
+    print("ground truth M")
+    print(ground_truth)
+
+    print("ratio of learned M to ground truth")
+    print(recourse_model.M / ground_truth)

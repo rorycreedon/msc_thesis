@@ -1,326 +1,313 @@
+# Importing packages
 import pandas as pd
 import numpy as np
-from multiprocessing import Pool
 import cvxpy as cp
-import gurobipy as gp
-from gurobipy import GRB
-from scipy.stats import norm
+import sklearn
 
-from scm import StructuralCausalModel
-from cost_learning import CostLearn
+# Local imports
 from utils import is_psd, get_near_psd
 
 
 class Recourse:
     """
-    A class containing a simple algorithm for calculating recourse.
+    A class for calculating recourse with learned costs.
     """
 
     def __init__(
         self,
         X: pd.DataFrame,
-        clf,
+        M_ground_truth: np.ndarray,
         M: np.ndarray = None,
-        scm: StructuralCausalModel = None,
+        n_rounds: int = 10,
     ):
         """
         Initialize the class with the data and the model coefficients.
-        :param X (pd.DataFrame): the negatively classified data
-        :param clf (sklearn classifier): the model
-        :param M (np.array): a PSD matrix
-        :param scm (StructuralCausalModel): the SCM
+        :param X: the negatively classified data (pd.DataFrame)
+        :param M: PSD matrix for Mahalanobis distance (np.ndarray)
+        :param M_ground_truth: ground truth PSD matrix for Mahalanobis distance (np.ndarray)
+        :param n_rounds: number of rounds for cost learning (int)
         """
         self.X = X
+        self.M_ground_truth = M_ground_truth
+        if M is None:
+            self.M = np.eye(X.shape[1])
+        else:
+            if not is_psd(M):
+                M = get_near_psd(M)
+            self.M = M
+
+        # Added in the update_classifier method
+        self.clf = None
+        self.weights = None
+        self.bias = None
+
+        # Recourse dataframe
+        self.recourse = None
+
+        # Cost Learning
+        self.pairwise_comparisons = None
+        self.outcomes = None
+        self.M_cvxpy = cp.Variable(self.M.shape, value=self.M, symmetric=True)
+        self.n_rounds = n_rounds
+
+    def update_data(self, X: pd.DataFrame) -> None:
+        """
+        Update the data.
+        :param X: the updated negatively classified data (pd.DataFrame)
+        :return: None
+        """
+        self.X = X
+
+    def update_classifier(self, clf: sklearn.linear_model.LogisticRegression) -> None:
+        """
+        Get the negatively classified data.
+        :param clf: the updated classifier (sklearn.linear_model.LogisticRegression)
+        :return: None
+        """
         self.clf = clf
         self.weights = clf.coef_[0]
         self.bias = clf.intercept_[0]
-        self.partial_recourse = None
-        self.X_negative = None
-        self.recourse = None
-        self.scm = scm
-        if M is None:
-            self.M = np.linalg.inv(X.cov())
-        else:
-            self.M = M
 
-    def ground_truth_costs(self, X_prime, causal=True):
-        if causal:
-            cost = 0
-
-            for col in self.X.columns:
-                # actual change
-                change = X_prime[col] - self.X[col]
-                assert not np.isnan(change).any()
-
-                # work out expected change based on change of the parents
-                parents = self.scm.get_parents(col, root_only=False)
-                expected_change = 0
-                if col not in parents.keys():
-                    for par in parents:
-                        if par in self.X.columns:
-                            expected_change += parents[par] * (
-                                X_prime[par] - self.X[par]
-                            )
-
-                # actual change minus expected change
-                unexpected_change = change - expected_change
-
-                cost += (0.5 * unexpected_change + 2 + 5 * np.sin(change)) ** 4
-
-            return cost
-
-        else:
+    @staticmethod
+    def ground_truth_costs(
+        X: pd.DataFrame,
+        X_prime: pd.DataFrame,
+        M: np.ndarray = None,
+        form: str = "mahalanobis",
+    ) -> np.ndarray:
+        """
+        Calculate the ground truth costs for a given change in X.
+        :param X: original features (pd.DataFrame)
+        :param X_prime: features after recourse (pd.DataFrame)
+        :param M: PSD matrix for Mahalanobis distance (np.ndarray)
+        :param form: form of cost function (str)
+        :return: cost values (np.ndarray)
+        """
+        if form == "mahalanobis":
+            if M is None:
+                M = np.eye(X.shape[1])
             return np.einsum(
                 "ji,jk,ki->i",
-                (self.X - X_prime).T,
-                np.eye(self.M.shape[0]),
-                (self.X - X_prime).T,
+                (X - X_prime).T,
+                M,
+                (X - X_prime).T,
             )
 
-    def _opt_full_logistic(
-        self, cost_function: str = "quadratic", backend: str = "cvxpy"
-    ):
+    def opt_logistic(self, cost_function: str = "mahalanobis") -> np.ndarray:
         """
-        Internal optimisation function for full recourse function
-        :param cost_function: Cost function to use
-        :param backend: Backend to use
-        :return: List of costs for each row, recourse values, recourse probabilities
+        Calculate the optimal recourse for a given classifier and cost function M.
+        :param cost_function: form of cost function (str)
+        :return: Recourse values (np.ndarray)
         """
-        if backend == "cvxpy":
-            x = cp.Variable(self.X.shape)
+        x = cp.Variable(self.X.shape)
 
-            # Define expression to minimise
-            if cost_function == "quadratic":
-                expr = cp.sum_squares(x - self.X)
+        if (cost_function == "quadratic") or np.all(self.M == np.eye(self.X.shape[1])):
+            expr = cp.sum_squares(x - self.X)
 
-            elif cost_function == "quad_form":
-                quad_forms = [
-                    cp.quad_form(x[i] - self.X.iloc[i], self.M)
-                    for i in range(self.X.shape[0])
-                ]
-                expr = cp.sum(quad_forms)
-
-            else:
-                raise ValueError(f"{cost_function} not recognised")
-
-            # Optimisation
-            objective = cp.Minimize(expr)
-            constraints = [cp.matmul(x, self.weights) + self.bias >= 0]
-
-            prob = cp.Problem(objective, constraints)
-            prob.solve(verbose=False)
-
-            recourse_x = x.value
-
-            if prob.status != "optimal":
-                raise ValueError(f"Optimisation not optimal: {prob.status}")
-
-        elif backend == "gurobi":
-            # Turn off output
-            gp.setParam("OutputFlag", 0)
-            gp.setParam("NonConvex", 0)
-
-            # Create model
-            model = gp.Model("full_recourse")
-
-            # Define variables
-            X = model.addMVar(
-                shape=self.X.shape,
-                vtype=GRB.CONTINUOUS,
-                name="x0",
-                lb=self.X,
-                ub=self.X,
-            )
-            X_prime = model.addMVar(
-                shape=self.X.shape, name="x", vtype=GRB.CONTINUOUS, lb=-50, ub=50
-            )
-
-            # Define objective function
-            if cost_function == "quadratic":
-                obj = ((X - X_prime) * (X - X_prime)).sum()
-
-            elif cost_function == "quad_form":
-                obj = gp.quicksum(
-                    (X_prime[i] - X[i]) @ self.M @ (X_prime[i] - X[i])
-                    for i in range(self.X.shape[0])
-                )
-
-            else:
-                raise ValueError(f"Cost function {cost_function} not recognised")
-
-            model.setObjective(obj, GRB.MINIMIZE)
-
-            # Define constraints
-            model.addConstr(X_prime @ self.weights + self.bias >= 0, name="constraint")
-
-            # Solve model
-            model.optimize()
-
-            # Check if optimal
-            if model.status != GRB.OPTIMAL:
-                raise ValueError(
-                    f"Full recourse optimisation with cost function {cost_function} not optimal: {model.status}"
-                )
-
-            # Get optimal values
-            recourse_x = X_prime.x
+        elif cost_function == "mahalanobis":
+            quad_forms = [
+                cp.quad_form(x[i] - self.X.iloc[i], self.M)
+                for i in range(self.X.shape[0])
+            ]
+            expr = cp.sum(quad_forms)
 
         else:
-            raise ValueError(f"Backend {backend} not recognised")
+            raise ValueError(f"{cost_function} not recognised")
 
-        # Calculate cost of recourse under true model
-        if cost_function == "quadratic":
-            costs = np.sum((recourse_x - self.X.values) ** 2, axis=1)
+        # Optimisation
+        objective = cp.Minimize(expr)
+        constraints = [cp.matmul(x, self.weights) + self.bias >= 0]
 
-        elif cost_function == "quad_form":
-            # costs = np.array(
-            #     [cp.quad_form(recourse_x[i] - self.X.iloc[i], self.M).value for i in range(self.X.shape[0])])
-            costs = np.einsum(
-                "ji,jk,ki->i", (self.X - recourse_x).T, self.M, (self.X - recourse_x).T
-            )
+        prob = cp.Problem(objective, constraints)
+        prob.solve(verbose=False)
 
-        else:
-            raise ValueError(f"Cost function {cost_function} not recognised")
+        return x.value
 
-        return costs, recourse_x
-
-    def _opt_partial_logistic(
-        self,
-        C: float,
-        row: int,
-        cost_function: str = "quadratic",
-        backend: str = "cvxpy",
-    ):
+    def gen_pairwise_comparisons(self) -> None:
         """
-        Internal optimisation function for partial recourse function for a single row.
-        :param C: Cost threshold
-        :param row: Row of the data to optimise
-        :param cost_function: Cost function to use
-        :param backend: Backend to use for optimisation. Currently, cvxpy and gurobi supported
-        :return:
-        """
-
-        if backend == "cvxpy":
-
-            def attempt_optimisation(
-                C: float,
-                row: int,
-                cost_function: str = "quadratic",
-                solver: str = "ECOS",
-                verbose: bool = False,
-            ):
-                # Define variables and objective function
-                x = cp.Variable(self.X_negative.shape[1])
-                objective = cp.Maximize(cp.matmul(x, self.weights) + self.bias)
-
-                # Define expression for constraint
-                if cost_function == "quadratic":
-                    expr = cp.sum_squares(x - self.X_negative.iloc[row].values)
-
-                elif cost_function == "quad_form":
-                    expr = cp.quad_form(x - self.X_negative.iloc[row].values, self.M)
-
-                else:
-                    raise ValueError(f"{cost_function} not recognised")
-
-                constraints = [expr <= C]
-
-                # Optimisation
-                prob = cp.Problem(objective, constraints)
-                prob.solve(verbose=verbose, solver=solver)
-
-                return x, prob, expr
-
-            x, problem, cost_expr = attempt_optimisation(
-                C=C, row=row, cost_function=cost_function, solver="ECOS", verbose=False
-            )
-
-            # Try again with verbose=True and a different solver if not optimal
-            if problem.status != "optimal":
-                x, problem, cost_expr = attempt_optimisation(
-                    C=C,
-                    row=row,
-                    cost_function=cost_function,
-                    verbose=True,
-                    solver="SCS",
-                )
-
-                if problem.status != "optimal":
-                    raise ValueError(f"Optimisation not optimal: {problem.status}")
-
-            return x.value, cost_expr.value
-
-        elif backend == "gurobi":
-            model = gp.Model("partial_recourse")
-
-            # Create a 2D array of variables
-            x = model.addMVar(
-                shape=self.X_negative.iloc[row].shape,
-                vtype=GRB.CONTINUOUS,
-                name="x",
-                lb=-100,
-                ub=100,
-            )
-            x_prime = model.addMVar(
-                shape=self.X_negative.iloc[row].shape,
-                vtype=GRB.CONTINUOUS,
-                name="x0",
-                lb=self.X_negative.iloc[row],
-                ub=self.X_negative.iloc[row],
-            )
-
-            # Define objective function
-            obj = x @ self.weights + self.bias
-            model.setObjective(obj, GRB.MAXIMIZE)
-
-            # Define constraints
-            if cost_function == "quadratic":
-                cost_expr = ((x - x_prime) * (x - x_prime)).sum()
-
-            elif cost_function == "quad_form":
-                cost_expr = (x - x_prime) @ self.M @ (x - x_prime)
-
-            else:
-                raise ValueError(f"Cost function {cost_function} not recognised")
-
-            # Solve model
-            model.addConstr(cost_expr <= C, name="constraint")
-            model.optimize()
-            recourse_x = x_prime.x
-
-            # Check if optimal
-            if model.status != GRB.OPTIMAL:
-                print(
-                    f"Partial recourse optimisation of row {row} with cost function {cost_function} not optimal, assuming no partial recourse actions taken at all"
-                )
-                recourse_x = self.X_negative.iloc[row].values
-
-            return recourse_x, float(cost_expr.getValue())
-
-        else:
-            raise ValueError(f"Backend {backend} not recognised")
-
-    def optimise_full_recourse(
-        self, C: float, cost_function: str = "quadratic", backend: str = "cvxpy"
-    ):
-        """
-        Optimise the recourse problem.
-        :param C: Cost threshold
-        :param cost_function: type of cost function to use
-        :param backend: Backend to use for optimisation. Currently, cvxpy and gurobi supported
+        Generate pairwise comparisons for cost learning. Append on to existing comparisons if they exist.
         :return: None
         """
-        recourse_cost, recourse_x = self._opt_full_logistic(
-            cost_function=cost_function, backend=backend
+        # Add perturbations to X
+        perturbations = np.random.uniform(
+            0, 1, size=(self.n_rounds * 2, self.X.shape[0], self.X.shape[1])
         )
+        X_perturbed = self.X.values + perturbations
 
+        # Evaluate the model on the perturbed data
+        logits = np.sum((X_perturbed * self.weights) + self.bias, axis=-1)
+
+        # Change one variable (randomly selected) in X_perturbed such that h(X)=0.5
+        def random_pick_index(arr):
+            return np.random.choice(len(arr))
+
+        idx = np.apply_along_axis(random_pick_index, 2, X_perturbed)
+        values_to_change = np.take_along_axis(
+            X_perturbed, idx[..., np.newaxis], axis=2
+        ).squeeze()
+        weights_to_change = self.weights[idx]
+        updated_values = values_to_change - logits / weights_to_change
+        idx0, idx1 = np.ogrid[: X_perturbed.shape[0], : X_perturbed.shape[1]]
+        X_perturbed[idx0, idx1, idx] = updated_values
+        X_perturbed = np.reshape(
+            X_perturbed, (self.n_rounds, 2, X_perturbed.shape[1], X_perturbed.shape[2])
+        )
+        # Concat on self.X
+        X_to_concat = np.expand_dims(self.X.values, axis=(0, 1))
+        X_to_concat = np.repeat(X_to_concat, self.n_rounds, axis=0)
+        X_perturbed = np.concatenate((X_to_concat, X_perturbed), axis=1)
+
+        # Create pairwise comparisons
+        if self.pairwise_comparisons is None:
+            self.pairwise_comparisons = X_perturbed
+        else:
+            self.pairwise_comparisons = np.concatenate(
+                (self.pairwise_comparisons, X_perturbed), axis=-2
+            )
+
+    def eval_comparisons(self) -> None:
+        """
+        Evaluate the pairwise comparisons.
+        :return: None
+        """
+        self.outcomes = np.empty(
+            shape=(self.n_rounds, self.pairwise_comparisons.shape[2])
+        )
+        for i in range(self.n_rounds):
+            cost_0 = self.ground_truth_costs(
+                self.pairwise_comparisons[i, 0],
+                self.pairwise_comparisons[i, 2],
+                M=self.M_ground_truth,
+                form="mahalanobis",
+            )
+            if np.min(cost_0) < 0:
+                raise AssertionError(
+                    f"Cost function must be non-negative, min is {np.min(cost_0)}"
+                )
+            cost_1 = self.ground_truth_costs(
+                self.pairwise_comparisons[i, 1],
+                self.pairwise_comparisons[i, 2],
+                M=self.M_ground_truth,
+                form="mahalanobis",
+            )
+            if np.min(cost_1) < 0:
+                raise AssertionError(
+                    f"Cost function must be non-negative, min is {np.min(cost_1)}"
+                )
+            self.outcomes[i] = np.where(cost_0 - cost_1 < 0, -1, 1)
+
+    def cost_loss(
+        self, loss_function: str = "hinge", margin: float = 0
+    ) -> cp.Expression:
+        """
+        Compute loss function for cost learning.
+        :param loss_function: the loss function to use (str)
+        :param margin: If loss function is max_margin, the margin to use (float)
+        :return: The loss value (cp.Expression)
+        """
+        loss = 0
+
+        # Define loss function
+        if loss_function == "hinge":
+            loss_func = lambda x: cp.pos(1 - x)
+        elif loss_function == "logistic":
+            loss_func = lambda x: cp.logistic(-x)
+        elif loss_function == "max_margin":
+            loss_func = lambda x: cp.pos(1 - x + margin)
+        else:
+            raise ValueError(f"{loss_function} not recognised")
+
+        # Loop over the rounds
+        for i in range(self.n_rounds):
+            # Create a matrix for each round of pairwise comparisons
+            diff_0 = self.pairwise_comparisons[i, 2] - self.pairwise_comparisons[i, 0]
+            diff_1 = self.pairwise_comparisons[i, 2] - self.pairwise_comparisons[i, 1]
+
+            # Compute the squared Mahalanobis distance for each round and row
+            quad_0 = cp.diag(diff_0 @ self.M_cvxpy @ diff_0.T)
+            quad_1 = cp.diag(diff_1 @ self.M_cvxpy @ diff_1.T)
+
+            # Compute the loss for this round
+            loss += cp.sum(loss_func(cp.multiply(self.outcomes[i], quad_0 - quad_1)))
+
+        # Normalise the loss
+        loss /= self.n_rounds * self.X.shape[0]
+
+        return loss
+
+    def learn_costs(
+        self, verbose: bool = False, loss_function: str = "hinge", margin: float = 0
+    ) -> None:
+        """
+        Learn costs.
+        :param verbose: whether to detailed information of the convex optimisation (bool)
+        :param loss_function: the loss function to use (str)
+        :param margin: If loss function is max_margin, the margin to use (float)
+        :return: None
+        """
+        # Calculate/update the pairwise comparisons
+        self.gen_pairwise_comparisons()
+        self.eval_comparisons()
+
+        # Define the problem
+        objective = cp.Minimize(
+            self.cost_loss(loss_function=loss_function, margin=margin)
+        )
+        constraints = [self.M_cvxpy >> 0]
+        prob = cp.Problem(objective, constraints)
+
+        # Solve the problem
+        prob.solve(verbose=verbose, solver="MOSEK")
+
+        # Store the results
+        self.M = self.M_cvxpy.value
+
+    def compute_recourse(
+        self,
+        cost_function: str = "mahalanobis",
+        C: float = np.inf,
+        verbose: bool = False,
+        loss_function: str = "hinge",
+        margin: float = 0,
+    ) -> None:
+        """
+        Compute the recourse for a given classifier and cost function.
+        :param cost_function: form of cost function (str)
+        :param C: Cost threshold for recourse (float)
+        :param verbose: whether to detailed information of the convex optimisation (bool)
+        :param loss_function: the loss function to use (str)
+        :param margin: If loss function is max_margin, the margin to use (float)
+        :return: None
+        """
+        # Get the optimal recourse
+        recourse_x = self.opt_logistic(cost_function=cost_function)
+
+        # Setup dataframe to store results
         self.recourse = pd.DataFrame(recourse_x, columns=self.X.columns)
 
+        # Learn costs
+        if self.n_rounds > 0:
+            self.learn_costs(
+                verbose=verbose,
+                loss_function=loss_function,
+                margin=margin,
+            )
+
+        # Add in costs to dataframe
         self.recourse.index = self.X.index
-        self.recourse["cost"] = recourse_cost
-        self.recourse["ground_truth_cost"] = self.ground_truth_costs(
-            self.recourse[self.X.columns]
+        self.recourse["learned_cost"] = self.ground_truth_costs(
+            X=self.X,
+            X_prime=self.recourse[self.X.columns],
+            M=self.M,
+            form="mahalanobis",
         )
+        self.recourse["ground_truth_cost"] = self.ground_truth_costs(
+            X=self.X,
+            X_prime=self.recourse[self.X.columns],
+            M=self.M_ground_truth,
+            form="mahalanobis",
+        )
+
         # Returning original values of X is cost < C
         self.recourse.update(self.X[self.recourse["ground_truth_cost"] > C])
         self.recourse["prob"] = self.clf.predict_proba(
@@ -328,104 +315,3 @@ class Recourse:
         )[:, 1]
         eps = 1e-6
         self.recourse["Y"] = (self.recourse["prob"] >= 0.5 - eps).astype(float)
-
-    def optimise_partial_recourse(
-        self, C: float, cost_function: str = "quadratic", backend: str = "cvxpy"
-    ):
-        """
-        Optimise the partial recourse problem.
-        :param C: Cost threshold
-        :param cost_function: Type of cost function
-        :param backend: Backend to use for optimisation. Currently, cvxpy and gurobi supported
-        :return: None
-        """
-
-        # Limit to just the individuals with a cost greater than C or NaN
-        self.X_negative = self.X[
-            np.logical_or(
-                (self.recourse["cost"] > C).values, self.recourse["cost"].isna().values
-            )
-        ]
-
-        if len(self.X_negative) == 0:
-            print("No individuals with cost greater than C")
-            return None
-
-        # Multiprocessing to optimise partial recourse for each row
-        func_args = [
-            (C, row, cost_function, backend) for row in range(self.X_negative.shape[0])
-        ]
-        with Pool() as pool:
-            results = pool.starmap(self._opt_partial_logistic, func_args)
-
-        # Lists to store recourse information
-        recourse_x = []
-        recourse_cost = []
-
-        # Appending recourse information to lists
-        for res in results:
-            recourse_x.append(res[0])
-            recourse_cost.append(res[1])
-
-        # Storing recourse information in dataframe
-        self.partial_recourse = pd.DataFrame(
-            recourse_x, columns=self.X_negative.columns
-        )
-        self.partial_recourse["cost"] = recourse_cost
-        self.partial_recourse["prob"] = self.clf.predict_proba(
-            self.partial_recourse[self.X.columns].values
-        )[:, 1]
-        eps = 1e-6
-        self.partial_recourse["Y"] = (
-            self.partial_recourse["prob"] >= (0.5 - eps)
-        ).astype(
-            float
-        )  # eps used to make sure that 0.5 is not rounded down
-        self.partial_recourse.index = self.X_negative.index
-
-    def learn_costs(self, n_rounds: int):
-        cost_learner = CostLearn(
-            self.recourse[self.X.columns],
-            weights=self.weights,
-            bias=self.bias,
-            n_rounds=n_rounds,
-        )
-        cost_learner.gen_pairwise_comparisons()
-        cost_learner.eval_comparisons(self.ground_truth_costs)
-        M = cost_learner.solve(verbose=False)
-        if not is_psd(M):
-            print("M is not PSD, getting nearest PSD matrix")
-        M = get_near_psd(M)
-        self.M = M
-
-    def compute_recourse(
-        self,
-        C: float,
-        partial_recourse: bool = False,
-        cost_function: str = "quadratic",
-        backend: str = "cvxpy",
-        n_rounds: int = 10,
-    ):
-        """
-        Compute full and partial recourse
-        :param cost_function: Type of cost function to use
-        :param C: Cost threshold for partial recourse
-        :param partial_recourse: Whether to compute partial recourse
-        :param backend: Backend to use for optimisation. Currently, cvxpy and gurobi supported
-        :param n_rounds: Number of rounds to use for cost learning
-        :return: None
-        """
-
-        # Compute recourse
-        self.optimise_full_recourse(C=C, cost_function=cost_function, backend=backend)
-        if n_rounds > 0:
-            self.learn_costs(n_rounds=n_rounds)
-
-        if partial_recourse:
-            self.optimise_partial_recourse(
-                C=C, cost_function=cost_function, backend=backend
-            )
-
-            # Merge in partial recourse
-            if len(self.X_negative) > 0:
-                self.recourse.update(self.partial_recourse)

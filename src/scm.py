@@ -6,7 +6,7 @@ from scipy.stats import norm, bernoulli
 
 class StructuralCausalModel:
     """
-    A simple class for simulating data from a structural causal model.
+    A class for simulating data from a structural causal model and managing updates to the data.
     """
 
     def __init__(self, N: int):
