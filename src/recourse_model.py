@@ -5,7 +5,7 @@ import cvxpy as cp
 import sklearn
 
 # Local imports
-from utils import is_psd, get_near_psd
+from src.utils import is_psd, get_near_psd
 
 
 class LearnedCostsRecourse:
@@ -266,6 +266,7 @@ class LearnedCostsRecourse:
         self,
         cost_function: str = "mahalanobis",
         C: float = np.inf,
+        learn_costs: bool = True,
         verbose: bool = False,
         loss_function: str = "hinge",
         margin: float = 0,
@@ -274,6 +275,7 @@ class LearnedCostsRecourse:
         Compute the recourse for a given classifier and cost function.
         :param cost_function: form of cost function (str)
         :param C: Cost threshold for recourse (float)
+        :param learn_costs: Whether to learn costs (bool)
         :param verbose: whether to detailed information of the convex optimisation (bool)
         :param loss_function: the loss function to use (str)
         :param margin: If loss function is max_margin, the margin to use (float)
@@ -286,7 +288,7 @@ class LearnedCostsRecourse:
         self.recourse = pd.DataFrame(recourse_x, columns=self.X.columns)
 
         # Learn costs
-        if self.n_rounds > 0:
+        if learn_costs:
             self.learn_costs(
                 verbose=verbose,
                 loss_function=loss_function,
