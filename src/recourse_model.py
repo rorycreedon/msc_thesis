@@ -74,6 +74,7 @@ class LearnedCostsRecourse:
         X_prime: pd.DataFrame,
         M: np.ndarray = None,
         form: str = "mahalanobis",
+        causal_model: bool = True,
     ) -> np.ndarray:
         """
         Calculate the ground truth costs for a given change in X.
@@ -83,7 +84,24 @@ class LearnedCostsRecourse:
         :param form: form of cost function (str)
         :return: cost values (np.ndarray)
         """
-        if form == "mahalanobis":
+        if causal_model:
+            # X_prime.index = X.index
+            X_hat = X_prime.copy()
+            if type(X) == pd.DataFrame:
+                X_hat.iloc[:, 1] = X_prime.iloc[:, 1] + 0.5 * (
+                    X_prime.iloc[:, 0] - X.iloc[:, 0]
+                )
+                assert np.sum(X_hat.isna().sum()) == 0, "X_hat contains NaNs"
+            else:
+                X_hat[:, 1] = X_prime[:, 1] + 0.5 * (X_prime[:, 0] - X[:, 0])
+            return np.einsum(
+                "ji,jk,ki->i",
+                (X - X_hat).T,
+                M,
+                (X - X_hat).T,
+            )
+
+        elif form == "mahalanobis":
             if M is None:
                 M = np.eye(X.shape[1])
             return np.einsum(
@@ -93,35 +111,80 @@ class LearnedCostsRecourse:
                 (X - X_prime).T,
             )
 
-    def opt_logistic(self, cost_function: str = "mahalanobis") -> np.ndarray:
+    def opt_logistic(
+        self, cost_function: str = "mahalanobis", ground_truth: bool = False
+    ) -> np.ndarray:
         """
         Calculate the optimal recourse for a given classifier and cost function M.
         :param cost_function: form of cost function (str)
         :return: Recourse values (np.ndarray)
+        :param ground_truth: whether to use the ground truth costs (bool)
         """
-        x = cp.Variable(self.X.shape)
+        x_prime = cp.Variable(self.X.shape)
+        if ground_truth:
+            x_hat = cp.vstack(
+                [
+                    x_prime[:, 0],
+                    x_prime[:, 1] + 0.5 * (x_prime[:, 0] - self.X.iloc[:, 0]),
+                ]
+            ).T
 
         if (cost_function == "quadratic") or np.all(self.M == np.eye(self.X.shape[1])):
-            expr = cp.sum_squares(x - self.X)
+            if ground_truth:
+                expr = cp.sum_squares(x_hat - self.X)
+            else:
+                expr = cp.sum_squares(x_prime - self.X)
 
         elif cost_function == "mahalanobis":
-            quad_forms = [
-                cp.quad_form(x[i] - self.X.iloc[i], self.M)
-                for i in range(self.X.shape[0])
-            ]
+            if ground_truth:
+                quad_forms = [
+                    cp.quad_form(
+                        x_hat[i] - self.X.iloc[i],
+                        self.M,
+                    )
+                    for i in range(self.X.shape[0])
+                ]
+            else:
+                quad_forms = [
+                    cp.quad_form(
+                        x_prime[i] - self.X.iloc[i],
+                        self.M,
+                    )
+                    for i in range(self.X.shape[0])
+                ]
             expr = cp.sum(quad_forms)
+
+        elif cost_function == "kernel_mahalanobis":
+            if ground_truth:
+                quad_forms = [
+                    cp.quad_form(
+                        x_hat[i] - self.X.iloc[i],
+                        self.M,
+                    )
+                    for i in range(self.X.shape[0])
+                ]
+            else:
+                quad_forms = [
+                    cp.quad_form(
+                        x_prime[i] - self.X.iloc[i],
+                        self.M,
+                    )
+                    for i in range(self.X.shape[0])
+                ]
 
         else:
             raise ValueError(f"{cost_function} not recognised")
 
         # Optimisation
         objective = cp.Minimize(expr)
-        constraints = [cp.matmul(x, self.weights) + self.bias >= 0]
+        constraints = [
+            cp.matmul(x_prime, self.weights) + self.bias >= 0,
+        ]
 
         prob = cp.Problem(objective, constraints)
         prob.solve(verbose=False)
 
-        return x.value
+        return x_prime.value
 
     def gen_pairwise_comparisons(self) -> None:
         """
@@ -270,6 +333,7 @@ class LearnedCostsRecourse:
         verbose: bool = False,
         loss_function: str = "hinge",
         margin: float = 0,
+        ground_truth: bool = False,
     ) -> None:
         """
         Compute the recourse for a given classifier and cost function.
@@ -279,13 +343,13 @@ class LearnedCostsRecourse:
         :param verbose: whether to detailed information of the convex optimisation (bool)
         :param loss_function: the loss function to use (str)
         :param margin: If loss function is max_margin, the margin to use (float)
+        :param ground_truth: whether to optimise with respect to the ground truth costs (bool)
         :return: None
         """
         # Get the optimal recourse
-        recourse_x = self.opt_logistic(cost_function=cost_function)
-
-        # Setup dataframe to store results
-        self.recourse = pd.DataFrame(recourse_x, columns=self.X.columns)
+        recourse_x = self.opt_logistic(
+            cost_function=cost_function, ground_truth=ground_truth
+        )
 
         # Learn costs
         if learn_costs:
@@ -294,6 +358,13 @@ class LearnedCostsRecourse:
                 loss_function=loss_function,
                 margin=margin,
             )
+            # Optimise again with learned costs
+            recourse_x = self.opt_logistic(
+                cost_function=cost_function, ground_truth=False
+            )
+
+        # Setup dataframe to store results
+        self.recourse = pd.DataFrame(recourse_x, columns=self.X.columns)
 
         # Add in costs to dataframe
         self.recourse.index = self.X.index

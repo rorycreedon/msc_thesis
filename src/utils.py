@@ -40,3 +40,14 @@ def get_near_psd(matrix: np.array):
     nearest_spd_matrix = np.real_if_close(nearest_spd_matrix)
 
     return nearest_spd_matrix
+
+
+def vprint(string: str, verbose: bool = False):
+    """
+    Print a string if verbose is set to True
+    :param verbose:
+    :param string: string to be printed
+    :return: None
+    """
+    if verbose:
+        print(string)

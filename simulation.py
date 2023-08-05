@@ -5,10 +5,13 @@ from scipy.stats import norm
 from sklearn.linear_model import LogisticRegression
 import matplotlib
 from typing import List, Callable
+from sklearn.datasets import make_spd_matrix
+import matplotlib as mpl
 
 from src.scm import StructuralCausalModel
 from src.recourse_model import LearnedCostsRecourse
 from src.utils import get_near_psd, is_psd
+from src.structure_learning import dagma_linear, process_df, dagma_mlp
 
 matplotlib.use("TkAgg")
 pd.set_option("mode.chained_assignment", None)
@@ -18,28 +21,44 @@ def simulate_data(N: int):
     # Define the SCM
     scm = StructuralCausalModel(N)
 
+    # # Fist variable is a normal distribution
+    # scm.add_variable(name="X1", distribution=norm, loc=0, scale=2)
+    #
+    # # X1 causes X2
+    # scm.add_relationship(causes={"X1": 3}, effect="X2", noise_dist=norm, loc=1, scale=1)
+    #
+    # # There exists an unobserved variable U
+    # scm.add_variable(name="U", distribution=norm, loc=0, scale=1)
+    #
+    # # Y is caused by X2 and U
+    # scm.add_binary_outcome(
+    #     name="Y_true", weights={"X2": 0.5, "U": -0.5}, noise_dist=norm, loc=0, scale=0
+    # )
+    #
+    # # X3 is caused by X1
+    # scm.add_relationship(
+    #     causes={"X1": -2}, effect="X3", noise_dist=norm, loc=0, scale=0.25
+    # )
+    #
+    # # X4 is caused by Y
+    # scm.add_relationship(
+    #     causes={"Y_true": 0.75}, effect="X4", noise_dist=norm, loc=0, scale=0.5
+    # )
+
     # Fist variable is a normal distribution
-    scm.add_variable(name="X1", distribution=norm, loc=0, scale=2)
+    scm.add_variable(name="X1", distribution=norm, loc=0, scale=1)
 
-    # X1 causes X2
-    scm.add_relationship(causes={"X1": 3}, effect="X2", noise_dist=norm, loc=1, scale=1)
+    # Unovserved variable U
+    scm.add_variable(name="U", distribution=norm, loc=0.5, scale=1)
 
-    # There exists an unobserved variable U
-    scm.add_variable(name="U", distribution=norm, loc=0, scale=1)
+    # X1 and U cause X2
+    scm.add_relationship(
+        causes={"X1": 0.5, "U": 1}, effect="X2", noise_dist=norm, loc=0, scale=1
+    )
 
-    # Y is caused by X2 and U
+    # X2 causes Y
     scm.add_binary_outcome(
-        name="Y_true", weights={"X2": 0.5, "U": -0.5}, noise_dist=norm, loc=0, scale=0
-    )
-
-    # X3 is caused by X1
-    scm.add_relationship(
-        causes={"X1": -2}, effect="X3", noise_dist=norm, loc=0, scale=0.25
-    )
-
-    # X4 is caused by Y
-    scm.add_relationship(
-        causes={"Y_true": 0.75}, effect="X4", noise_dist=norm, loc=0, scale=0.5
+        name="Y_true", weights={"X1": 2, "X2": 3}, noise_dist=norm, loc=0, scale=0
     )
 
     # Return object
@@ -60,10 +79,12 @@ def simulate_recourse(
     margin: float = 0,
     M_func: Callable = lambda X: np.eye(X.shape[1]),
     ground_truth_M: np.ndarray = np.eye(4),
+    variables: List = ["X1", "X2"],
+    seed: int = None,
 ):
     # Generate data
     data = scm.generate_data()
-    X = data[["X1", "X2", "X3", "X4"]]
+    X = data[["X1", "X2"]]
     scm.data["Y"] = scm.data["Y_true"].copy()
 
     # Define lists to store results
@@ -78,7 +99,12 @@ def simulate_recourse(
         ground_truth_M = get_near_psd(ground_truth_M)
 
     # Define train and test sets by IDs
-    train_ids = np.random.choice(X.index, size=int(0.5 * len(X)), replace=False)
+    np.random.seed(seed)
+    train_ids = np.random.choice(
+        X.index,
+        size=int(0.5 * len(X)),
+        replace=False,
+    )
     test_ids = np.array([i for i in X.index if i not in train_ids])
 
     # Initialise recourse class
@@ -88,22 +114,30 @@ def simulate_recourse(
     else:
         M = M_func(X)
     recourse_model = LearnedCostsRecourse(
-        X, M_ground_truth=ground_truth_M, n_rounds=n_rounds, M=M
+        X,
+        M_ground_truth=ground_truth_M,
+        n_rounds=n_rounds,
+        M=M,
     )
 
+    X_numpy, labels = process_df(scm.data[["X1", "X2", "Y"]])
+    G = dagma_mlp(X_numpy, labels, dims=[3, 2, 2, 1])
+
     running_cost = 0
+
+    clf = LogisticRegression(random_state=seed)
 
     # Iterate over each round
     for i in range(1, iterations + 1):
         print(f"Iteration {i} started")
 
         # Split data into train and test
-        X_train = scm.data[["X1", "X2", "X3", "X4"]][scm.data["ID"].isin(train_ids)]
+        X_train = scm.data[["X1", "X2"]][scm.data["ID"].isin(train_ids)]
         y_train = scm.data["Y_true"][scm.data["ID"].isin(train_ids)]
-        X_test = scm.data[["X1", "X2", "X3", "X4"]][scm.data["ID"].isin(test_ids)]
+        X_test = scm.data[["X1", "X2"]][scm.data["ID"].isin(test_ids)]
 
         # Train classifier and predict
-        clf = LogisticRegression(penalty="l2", C=2).fit(X_train.values, y_train.values)
+        clf.fit(X_train.values, y_train.values)
         y_pred = clf.predict(X_test.values)
 
         # Calculate accuracy
@@ -112,15 +146,15 @@ def simulate_recourse(
         accuracy.append(np.sum(y_pred == y_true) / len(y_true))
 
         # Predict for all data (for recourse)
-        y_pred = clf.predict(scm.data[["X1", "X2", "X3", "X4"]].values)
+        y_pred = clf.predict(scm.data[["X1", "X2"]].values)
 
         # If all predicted 1, then finish iterating
-        if np.min(y_pred) == 1:
-            print("All predicted 1")
-            return accuracy, class_positive, true_positives
+        # if np.min(y_pred) == 1:
+        # print("All predicted 1")
+        # return accuracy, class_positive, true_positives
 
         # Compute recourse
-        X_neg = scm.data[["X1", "X2", "X3", "X4"]]
+        X_neg = scm.data[["X1", "X2"]]
         X_neg.index = scm.data["ID"]
         X_neg = X_neg.loc[((y_pred == 0) & (scm.data["recourse_eligible"] == 1)).values]
         recourse_model.update_data(X_neg)
@@ -132,28 +166,34 @@ def simulate_recourse(
             learn_costs=learn_costs,
             loss_function=loss_function,
             margin=margin,
+            ground_truth=ground_truth,
         )
 
-        if (recourse_model.recourse.Y == 1).all():
-            print("finished")
-            return accuracy, class_positive, true_positives, costs
+        # if (recourse_model.recourse.Y == 1).all():
+        # print("All predicted 1")
+        # return accuracy, class_positive, true_positives, costs
 
         # Calculate proportion of test set that is positively classified
         class_positive.append(np.sum(y_pred[test_ids] == 1) / len(test_ids))
         true_positives.append(np.sum(y_true == 1) / len(y_true))
 
         # Costs
-        running_cost += (
-            recourse_model.recourse[
-                recourse_model.recourse["ground_truth_cost"] <= C
-            ].shape[0]
-            / X.shape[0]
-        )
+        # running_cost += (
+        #     recourse_model.recourse[
+        #         recourse_model.recourse["ground_truth_cost"] <= C
+        #     ].shape[0]
+        #     / X.shape[0]
+        # )
+        running_cost = recourse_model.recourse["ground_truth_cost"]
         costs.append(running_cost)
+        if learn_costs:
+            print("Learned M")
+            print(recourse_model.M)
 
         # Update the SCM with the new data
+        list_y = variables + ["Y"]
         scm.append_data(
-            recourse_model.recourse[["X1", "X2", "X3", "X4", "Y"]],
+            recourse_model.recourse[list_y],
             ids=recourse_model.recourse.index.to_series(),
         )
         scm.data.drop_duplicates(subset=["ID"], inplace=True, keep="last")
@@ -198,32 +238,65 @@ def plot(
 
 
 def recourse_comparison_plot(cost_dicts: List, plot_dict: dict):
-    for i in range(len(cost_dicts)):
-        plt.plot(cost_dicts[i]["costs"], label=cost_dicts[i]["label"])
+    for i in range(1, len(cost_dicts)):
+        # plt.plot(cost_dicts[i]["costs"], label=cost_dicts[i]["label"])
+        # plt.bar(x=i, height=cost_dicts[i]["costs"], label=cost_dicts[i]["label"])
+
+        # MSE
+        plt.bar(
+            x=i - 1,
+            height=(
+                (np.array(cost_dicts[i]["costs"]) / np.array(cost_dicts[0]["costs"]))
+                ** 2
+            ).mean(),
+            label=cost_dicts[i]["label"],
+        )
+
+        # plt.hist(
+        #     cost_dicts[i]["costs"],
+        #     label=cost_dicts[i]["label"],
+        #     bins=50,
+        #     range=(0, 10),
+        #     density=True,
+        #     alpha=0.2,
+        # )
     plt.legend()
+    # plt.xticks(
+    #     np.arange(len(cost_dicts[0]["costs"])),
+    #     np.arange(1, len(cost_dicts[0]["costs"]) + 1),
+    # )
+    # plt.xlabel("Iteration")
+    plt.ylabel("Mean squared error of cost vs ground truth")
+    # Format y axis labels as percentages
+    # vals = plt.gca().get_yticks()
+    # plt.gca().set_yticklabels(["{:,.0%}".format(x) for x in vals])
     plt.title(
-        f"Successful recourse proportion of total individuals for:\n C={plot_dict['C']}, N={plot_dict['N']}, comparisons={plot_dict['n_rounds']}"
+        f"Mean squared error of costs for:\n N={plot_dict['N']}, comparisons={plot_dict['n_rounds']}"
     )
+    plt.gca().figure.set_size_inches(6.3, 4)
     plt.savefig(f"plots/recourse_comparison.png")
     plt.show()
 
 
 if __name__ == "__main__":
-    N = 1000
-    C = 0.005
-    iterations = 5
+    # Define parameters
+    N = 5000
+    C = np.inf
+    iterations = 1
     n_rounds = 5
-    ground_truth_M = np.array(
-        [
-            [75, -4, 30, -2],
-            [-4, 1, -0.5, 0.1],
-            [30, -0.5, 15, -1],
-            [-2, 0.1, -1, 5],
-        ]
-    )
-    if not is_psd(ground_truth_M):
-        ground_truth_M = get_near_psd(ground_truth_M)
-    assert is_psd(ground_truth_M)
+    variables = ["X1", "X2"]
+    SEED = 42
+
+    # Plotting setup
+    plt.rcParams["savefig.dpi"] = 300
+    mpl.rcParams["font.family"] = "serif"
+    mpl.rcParams["font.serif"] = "cmr10"
+    mpl.rcParams["mathtext.fontset"] = "cm"
+    mpl.rcParams["axes.unicode_minus"] = False
+    mpl.rcParams["font.size"] = "10"
+
+    # ground_truth_M = make_spd_matrix(2)
+    ground_truth_M = np.array([[2, 0], [0, 1]])
     scm = simulate_data(N)
 
     cost_dicts = []
@@ -238,6 +311,8 @@ if __name__ == "__main__":
             ground_truth=True,
             cost_function="mahalanobis",
             ground_truth_M=ground_truth_M,
+            variables=variables,
+            seed=SEED,
         )[-1],
         "label": "Ground truth",
     }
@@ -256,6 +331,8 @@ if __name__ == "__main__":
             loss_function="hinge",
             margin=0,
             ground_truth_M=ground_truth_M,
+            variables=variables,
+            seed=SEED,
         )[-1],
         "label": "Learned cost function",
     }
@@ -281,6 +358,8 @@ if __name__ == "__main__":
                 cost_function=cf,
                 ground_truth_M=ground_truth_M,
                 M_func=m_func,
+                variables=variables,
+                seed=SEED,
             )[-1],
             "label": label,
         }

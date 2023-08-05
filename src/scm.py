@@ -166,7 +166,7 @@ class StructuralCausalModel:
         scm.outcomes = self.outcomes.copy()
         return scm
 
-    def get_parents(self, col, root_only=True, i=1):
+    def get_parents(self, col, root_only=False, i=1):
         """
         Return the full relationship for a given column.
         :param col: column name
@@ -201,7 +201,7 @@ class StructuralCausalModel:
 
         else:
             if col in self.distributions.keys():
-                return {col: 1}
+                return f"{col} is a root node"
 
             elif col in self.relationships.keys():
                 return self.relationships[col]

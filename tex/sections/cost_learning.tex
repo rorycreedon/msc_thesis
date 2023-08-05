@@ -1,13 +1,30 @@
 \chapter{Cost Learning}
 
-In order to generate recourse selections, we need to solve the constrained optimisation problem mentioned in equation \ref{eq:recourse_setup}, where $\mathbf{x}$ are the individual's original features, $f$ is the utility of being positively or negatively classified, $c$ is the cost function and $B$ is the individual's `budget' for changing their features.
+
+
+As discussed in section \ref{chapter:lit_review}, the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ in the strategic classification literature is typically a quadratic cost function of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$ [\textbf{ADD CITATIONS}], or occasionally a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.
+
+However, these do not necessarily represent the true complexities of the cost of moving from $\mathbf{x}$ to $\mathbf{x}'$, for a number of (non-exhaustive) reasons. Consider the case of a individuals applying for a line of credit.
+
+\begin{enumerate}
+	\item \textbf{Changing one feature can change the cost of changing another feature}. If an individual decides not to inquire about a loan for a number of months (which will change the feature ``number of inquiries in the last 6 months'', the cost of decreasing the feature ``number of inquiries in the last 6 months, excluding the last 7 days'' will be very low or zero. However, if a quadratic cost function (or any $L_p$ norm cost function) is used, this will be interpreted as two separate feature changes and the costs will be summed. Whilst this simple case can likely be handled by domain expertise, more complex causal relations will exist. Consider an individual obtaining two more credit cards. Whilst this may reduce the cost of increasing ``number of credit cards'', this may also increase the cost of ``monthly credit card payments'' and may have less clear effects (which need not be linear) on other features.
+	
+	\item \textbf{Changing feature costs can be different for different individuals}. For example, increasing the number of credit cards from 1 to 5 may be much easier for someone with a higher income or increasing income from £25,000 to £30,000 may be much easier for someone with a higher level of education. These are all modelled as the same in typical cost functions used in the literature.
+\end{enumerate}
+
+[\textbf{ADD IN SECTION ON SPECIFYING CAUSAL GRAPHS}]
+
+We do not observe the cost function itself, but one way to approximate it is to \textit{learn from revealed preferences} (see section \ref{section:revealed_pref_lit}). We propose that each individual who is negatively classified is presented with $N$ pairs of recourse options $(\textbf{x}_n^a,\textbf{x}_n^b)$. If option $a$ is selected, then we assume $c(\textbf{x}, \textbf{x}_n^a) \leq c(\textbf{x}, \textbf{x}_n^b)$ and if option $b$ is selected, then we assume $c(\textbf{x}, \textbf{x}_n^a) \geq c(\textbf{x}, \textbf{x}_n^b)$. The responses to the pairs of recourse options presented (the pairwise comparisons) reveal information about the individuals' preferences over recourse options, i.e., their cost functions.
+
+Once a cost function is learned, we need to solve the constrained optimisation problem mentioned in equation \ref{eq:recourse_setup} to generate the recourse package $\textbf{x}^f$, where $\mathbf{x}$ are the individual's original features, $h$ is the utility of being positively or negatively classified, $c$ is the cost function and $B$ is the individual's `budget' for changing their features.
 
 \begin{align}
-	& \mathbf{x}^f = \argmax_{\mathbf{x}' \in \mathbf{\mathcal{X}}} f(\mathbf{x}) - c(\mathbf{x}, \mathbf{x}') \\
-	& \text{s.t. } c(\mathbf{x}, \mathbf{x}') \leq B \nonumber
+	\mathbf{x}^f = & \argmin_{\mathbf{x}' \in \mathbf{\mathcal{X}}} c(\mathbf{x},\mathbf{x}') \\
+	\text{s.t. } & h(\mathbf{x}') = 1, \nonumber \\ 
+	& c(\mathbf{x},\mathbf{x}') \leq B \nonumber
 \end{align}
 
-To solve for $\mathbf{x}^f$ effectively, this is typically handled as a convex optimisation problem. This requires the learned cost function $c$ to be suitable to be convex/suitable for convex optimisation. Two different functional forms for the cost function are outlined below.
+This chapter goes on to detail learning different functional forms for the cost function $c$. For a linear classifier and convex cost function (which the literature focuses on), this is typically handled as a convex optimisation problem. Therefore, in the following sections, where convex costs functions are learned, convex optimisation is used to find the recourse package $\textbf{x}^f$.
 
 
 \section{Mahalanobis distance}
@@ -18,30 +35,27 @@ The Mahalanobis distance between the vector $\mathbf{x}$ and the vector $\mathbf
 	||\mathbf{x-y}||_{\mathbf{M}} = \sqrt{(\mathbf{x-y})^T\mathbf{M}^{-1}(\mathbf{x-y})}
 \end{equation}
 
-The matrix $\mathbf{M}$ captures different distances relationships between the features within $\mathbf{x}$ and $\mathbf{y}$ in the off-diagonal elements of $\mathbf{M}$. If $\mathbf{M}$ is set to the identity matrix, then the Mahalanobis distance then becomes equal to the Euclidean distance between $\mathbf{x}$ and $\mathbf{y}$. \\
+The matrix $\mathbf{M}$ captures different relationships between the features within $\mathbf{x}$ and $\mathbf{y}$ in the off-diagonal elements of $\mathbf{M}$. If $\mathbf{M}$ is set to the identity matrix, then the Mahalanobis distance then becomes equal to the Euclidean distance between $\mathbf{x}$ and $\mathbf{y}$. \\
 
 \subsection{Learning the Mahalanobis distance}
 
-In order to use the Mahalanobis distance as a cost function, we must learn the matrix $\mathbf{M}$. In this set-up, each individual $k$ with original features $\mathbf{x}_k$ is presented with $N$ recourse options $(\mathbf{x}_{kn}^a, \mathbf{x}_{kn}^b)$ and responds with $y_{kn}=-1$ if offering $a$ is preferred (preferences are defined by the ground truth cost function) and $y_{kn}=1$ if offering $b$ is preferred. The optimisation problem presented in \textcite{canalOneAllSimultaneous2022} is simplified (to only conduct metric learning, as opposed to metric and preference learning) in equation \ref{eq:mahalanobis_non_convex}, where $\ell$ represents either the hinge or logistic loss function.
+In order to use the Mahalanobis distance as a cost function, we must learn the matrix $\mathbf{M}$. In this set-up, each individual $k$ with original features $\mathbf{x}_k$ is presented with $N$ recourse options $(\mathbf{x}_{kn}^a, \mathbf{x}_{kn}^b)$. The response $y_{kn}$ is defined in equation \ref{eq:response_definition}, where $c^G_k$ represents the ground truth cost function of individual $k$.
+
+\begin{equation} \label{eq:response_definition}
+	y_{kn} = \begin{cases}
+		-1 & \text{if } c^G_k(\mathbf{x}_{kn}, \mathbf{x}^a_{kn}) \leq c^G_k(\mathbf{x}_{kn}, \mathbf{x}^b_{kn}) \\
+		+1 & \text{if } c^G_k(\mathbf{x}_{kn}, \mathbf{x}^a_{kn}) > c^G_k(\mathbf{x}_{kn}, \mathbf{x}^b_{kn}) \\
+	\end{cases}
+\end{equation}
+
+To optimise for $\textbf{M}$, we compare the squared Mahalanobis distances between $\textbf{x}_k$ and $\textbf{x}^a_{kn}$ and between $\textbf{x}_k$ and $\textbf{x}^b_{kn}$. The optimisation problem to learn $\textbf{M}$ is shown in equation \ref{eq:mahalanobis_non_convex}, where $\ell$ represents either the hinge or logistic loss function. The optimisation is an adaptation of the optimisation problem presented in \textcite{canalOneAllSimultaneous2022}.
+
+[\textbf{TO ADD EXPLANATION ON WHY THIS IS A GOOD OPTIMISATION}]
 
 \begin{align} \label{eq:mahalanobis_non_convex}
 	\min_{\mathbf{M}} & \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell \bigg( y_{kn} \big(|| \mathbf{x}_k - \mathbf{x}_{kn}^a ||^2_{\mathbf{M}} - || \mathbf{x}_k - \mathbf{x}_{kn}^b ||^2_{\mathbf{M}} \big) \bigg) \\	
-	\text{s.t. } & \mathbf{M} \succeq 0, \nonumber \\
-	& ||\mathbf{M}||_F \leq \lambda_M \nonumber
+	\text{s.t. } & \mathbf{M} \succeq 0, \nonumber
 \end{align}
-
-The term $\lambda_F$ is used to regularise the matrix $\mathbf{M}$. However, this is a non-convex problem due to the squared Mahalanobis terms. Therefore, to make this problem convex, we must use a substitution $\mathbf{v}_k = -2\mathbf{Mx}_k$. The optimisation problem we solve is presented in equation \ref{eq:mahalanobis_convex}.
-
-\begin{align} \label{eq:mahalanobis_convex}
-	\min_{\mathbf{M}, \{ \mathbf{v}_k\}^K_{k=1}} &  \sum_{k=1}^K \sum_{n=1}^N \ell \bigg( y_{kn} \big(||\mathbf{x}_{kn}^a ||^2_{\mathbf{M}} - ||\mathbf{x}_{kn}^b ||^2_{\mathbf{M}} + \mathbf{v}_k^T (\mathbf{x}_{kn}^a - \mathbf{x}_{kn}^b) \big) \bigg) \\
-	\text{s.t. } & \mathbf{M} \succeq 0, \nonumber \\
-	& ||\mathbf{M}||_F \leq \lambda_M \nonumber
-\end{align}
-
-
-This is a convex problem that can be solved using an convex optimisation solver such as SCS \citep{odonoghueOperatorSplittingHomogeneous2021}.
-
-
 
 \section{Convex layers}
 

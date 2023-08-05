@@ -1,4 +1,4 @@
-\chapter{Literature Review}
+\chapter{Literature Review} \label{chapter:lit_review}
 
 \section{Algorithmic Recourse}
 
@@ -8,10 +8,13 @@ Description of what algorithmic recourse is and why it is important - use of aut
 
 \subsection{Problem Set-up}
 \begin{itemize}
-	\item Description of the original set-up and problem - i.e., 
-	\begin{equation} \label{eq:recourse_setup}
-		 \mathbf{x}^f = \argmax_{\mathbf{x}' \in \mathbf{\mathcal{X}}} f(\mathbf{x}') - c(\mathbf{x},\mathbf{x}')
-	\end{equation} 
+	\item Description of the original set-up and problem - i.e., 	
+	\begin{align} \label{eq:recourse_setup}
+		\mathbf{x}^f = & \argmin_{\mathbf{x}' \in \mathbf{\mathcal{X}}} c(\mathbf{x},\mathbf{x}') \\
+		\text{s.t. } & h(\mathbf{x}') = 1, \nonumber \\ 
+		& c(\mathbf{x},\mathbf{x}') \leq B \nonumber
+	\end{align} 
+	
 	\item Description of the causal recourse set-up and problem \citep{karimiAlgorithmicRecourseCounterfactual2021}
 	\item Cost and distance functions, actionability of features
 \end{itemize}
@@ -56,7 +59,7 @@ A review of the \textit{causal} strategic classification literature, which focus
 
 
 
-\section{Revealed Preferences}
+\section{Revealed Preferences} \label{section:revealed_pref_lit}
 A brief primer on axioms of revealed preferences, and on the literature of \textit{learning from revealed preferences}. To briefly discuss:
 
 \begin{itemize}
