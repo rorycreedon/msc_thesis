@@ -22,7 +22,7 @@ def process_df(df: pd.DataFrame) -> (np.ndarray, List):
 
 def dagma_linear(
     X: np.ndarray, labels: List, loss_type: str, mask: np.ndarray = None, **kwargs
-) -> nx.DiGraph:
+) -> (nx.DiGraph, np.ndarray):
     """
     Learn a DAG using DAGMA linear
     :param X: np array of data
@@ -35,40 +35,43 @@ def dagma_linear(
     # Fit DAGMA linear model to learn a DAG
     model = DagmaLinear(loss_type=loss_type, mask=mask)
     W = model.fit(X, **kwargs)
+    print(W)
 
     # Convert to networkx graph
     G = nx.DiGraph(W.T)
 
     # Fix labels
-    nx.set_node_attributes(G, labels, "label")
+    label_mapping = {node: labels[node] for node in G.nodes()}
+    G = nx.relabel_nodes(G, label_mapping)
 
     # Write the graph to a file
-    nx.write_graphml(G, "graphs/dagma_linear.graphml")
+    nx.write_gml(G, "graphs/dagma_linear.gml")
 
-    return G
+    return G, W
 
 
 def dagma_mlp(
     X: np.ndarray, labels: List, dims: List, mask: np.ndarray = None, **kwargs
-) -> nx.DiGraph:
+) -> (nx.DiGraph, np.ndarray):
     if mask is not None:
         mask = torch.Tensor(mask)
 
     # Fit DAGMA linear model to learn a DAG
     eq_model = DagmaMLP(dims=dims, bias=True)
     model = DagmaNonlinear(eq_model)
-    W = model.fit(X, mask=mask**kwargs)
+    W = model.fit(X, mask=mask, **kwargs)
 
     # Convert to networkx graph
     G = nx.DiGraph(W.T)
 
     # Fix labels
-    nx.set_node_attributes(G, labels, "label")
+    label_mapping = {node: labels[node] for node in G.nodes()}
+    G = nx.relabel_nodes(G, label_mapping)
 
     # Write the graph to a file
-    nx.write_graphml(G, "graphs/dagma_MLP.graphml")
+    nx.write_gml(G, "graphs/dagma_MLP.gml")
 
-    return G
+    return G, W
 
 
 def plot_graph(

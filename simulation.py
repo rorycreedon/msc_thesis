@@ -48,7 +48,7 @@ def simulate_data(N: int):
     # Fist variable is a normal distribution
     scm.add_variable(name="X1", distribution=norm, loc=0, scale=1)
 
-    # Unovserved variable U
+    # Unobserved variable U
     scm.add_variable(name="U", distribution=norm, loc=0.5, scale=1)
 
     # X1 and U cause X2

@@ -1,84 +1,63 @@
-from sklearn.linear_model import LogisticRegression
-import numpy as np
+from scipy.stats import norm
 
-from src.recourse_model import LearnedCostsRecourse
-from src.utils import get_near_psd, is_psd
-from simulation import simulate_data
+from src.scm import StructuralCausalModel
+from src.structure_learning import dagma_linear, process_df, plot_graph
+from src.causal_effect_estimation import causal_effect_estimation
 
 
-def sim(N):
-    # Generate data
-    scm = simulate_data(N)
-    data = scm.generate_data()
-    X = data[["X1", "X2", "X3", "X4"]]
-    scm.data["Y"] = scm.data["Y_true"].copy()
+def simulate_data(N):
+    # Define the SCM
+    scm = StructuralCausalModel(N)
+    # Fist variable is a normal distribution
+    scm.add_variable(name="X1", distribution=norm, loc=0, scale=1)
 
-    # Define lists to store results
-    accuracy = []
-    class_positive = []
-    true_positives = []
+    # Unobserved variable U1
+    scm.add_variable(name="U1", distribution=norm, loc=0, scale=0.5)
 
-    # Make matrix for quadratic form cost function
-    M = X.cov().values
-    if not is_psd(M):
-        print("A is not PSD, getting nearest PSD matrix")
-        M = get_near_psd(M)
-
-    # Define train and test sets by IDs
-    train_ids = np.random.choice(X.index, size=int(0.5 * len(X)), replace=False)
-    test_ids = np.array([i for i in X.index if i not in train_ids])
-
-    # Split data into train and test
-    X_train = scm.data[["X1", "X2", "X3", "X4"]][scm.data["ID"].isin(train_ids)]
-    y_train = scm.data["Y_true"][scm.data["ID"].isin(train_ids)]
-    X_test = scm.data[["X1", "X2", "X3", "X4"]][scm.data["ID"].isin(test_ids)]
-
-    # Train classifier and predict
-    clf = LogisticRegression(penalty="l2", C=2).fit(X_train.values, y_train.values)
-    y_pred = clf.predict(X_test.values)
-
-    # Calculate accuracy
-    y_true = scm.data[scm.data["ID"].isin(test_ids)]["Y_true"].values
-    assert y_pred.shape == y_true.shape
-    accuracy.append(np.sum(y_pred == y_true) / len(y_true))
-
-    # Predict for all data (for recourse)
-    y_pred = clf.predict(scm.data[["X1", "X2", "X3", "X4"]].values)
-
-    # Compute recourse
-    X_neg = scm.data[["X1", "X2", "X3", "X4"]]
-    X_neg.index = scm.data["ID"]
-    X_neg = X_neg.loc[((y_pred == 0) & (scm.data["recourse_eligible"] == 1)).values]
-    recourse_model = LearnedCostsRecourse(X_neg, M_ground_truth=X.cov().values)
-    recourse_model.update_classifier(clf)
-    recourse_model.compute_recourse(
-        C=np.inf,
-        verbose=False,
-        loss_function="hinge",
+    # X1 and U cause X2
+    scm.add_relationship(
+        causes={"X1": 0.5, "U1": 1}, effect="X2", noise_dist=norm, loc=0, scale=0
     )
 
-    return recourse_model, X_neg, X.cov().values
+    # Unobserved variable U2
+    scm.add_variable(name="U2", distribution=norm, loc=0, scale=0.5)
+
+    # X1 and U cause X2
+    scm.add_relationship(
+        causes={"X2": 0.5, "U2": 1}, effect="X3", noise_dist=norm, loc=0, scale=0
+    )
+
+    # X2 causes Y
+    scm.add_binary_outcome(
+        name="Y", weights={"X1": 2, "X2": 3, "X3": 2.5}, noise_dist=norm, loc=0, scale=0
+    )
+    # scm.add_relationship(
+    #     causes={"X1": 2, "X2": 3, "X3": 2.5},
+    #     effect="Y",
+    #     noise_dist=norm,
+    #     loc=0.3,
+    #     scale=4,
+    # )
+
+    # Return object
+    df = scm.generate_data()
+
+    return df[["X1", "X2", "X3", "Y"]]
 
 
 if __name__ == "__main__":
-    recourse_model, X_neg, ground_truth = sim(2500)
-    # cost_learner = CostLearn(X_neg, recourse_model.weights, recourse_model.bias, 10)
-    # cost_learner.gen_pairwise_comparisons()
-    #
-    # ground_truth = X_neg.cov().values
-    #
-    # cost_learner.eval_comparisons(
-    #     recourse_model.ground_truth_costs_static,
-    #     causal=False,
-    #     M=ground_truth,
-    # )
-    # cost_learner.solve(verbose=False, loss_function="max_margin")
+    data = simulate_data(50000)
 
-    print(f"Is PSD?: {is_psd(recourse_model.M)}")
-    print(recourse_model.M)
+    # Process the dataframe
+    data_numpy, labels = process_df(data)
+    # Learn and plot graph
+    G, W = dagma_linear(data_numpy, labels, loss_type="l2", mask=None, lambda1=0)
+    plot_graph(G, fig_size=(5, 5), file_name="dagma_linear.png")
 
-    print("ground truth M")
-    print(ground_truth)
-
-    print("ratio of learned M to ground truth")
-    print(recourse_model.M / ground_truth)
+    # Estimate causal effects
+    causal_effects = causal_effect_estimation(
+        graph_name="dagma_linear",
+        df=data,
+        W=W,
+        labels=labels,
+    )
