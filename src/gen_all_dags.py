@@ -51,9 +51,10 @@ def generate_dags(N):
     return add_edges(matrix, 0, N)
 
 
-# Usage
-start = time.time()
-dags_3_optimized = generate_dags(15)
-end = time.time()
-print(f"Took {end - start} seconds")
-print(len(dags_3_optimized))
+if __name__ == "__main__":
+    # Usage
+    start = time.time()
+    dags_3_optimized = generate_dags(15)
+    end = time.time()
+    print(f"Took {end - start} seconds")
+    print(len(dags_3_optimized))
