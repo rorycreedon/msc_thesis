@@ -59,6 +59,7 @@ class CausalRecourseGeneration:
         sorter: SoftSort,
         W_classifier: torch.Tensor,
         b_classifier: torch.Tensor = 0,
+        fixed_ordering: torch.Tensor = None,
     ) -> None:
         """
         Initialize the class
@@ -73,6 +74,7 @@ class CausalRecourseGeneration:
         self.sorter = sorter
         self.W_classifier = W_classifier
         self.b_classifier = b_classifier
+        self.fixed_ordering = fixed_ordering
 
     def loss_differentiable(
         self,
@@ -84,6 +86,7 @@ class CausalRecourseGeneration:
         Differentiable loss function to measure cost (uses SoftSort)
         :param A: Actions to take for each variable
         :param O: The initial ordering of the features
+        :param index: The index of the instance to be explained
         :return: (X_bar, cost) where X_bar is the sorted values and cost total cost of applying A with ordering O.
         """
         # Initialize result tensors
@@ -92,6 +95,28 @@ class CausalRecourseGeneration:
             S = self.sorter(O.unsqueeze(0))[0]
         else:
             S = self.sorter(O)[0]
+        cost = 0
+
+        for i in range(self.W_adjacency.shape[0]):
+            X_bar += (self.W_adjacency * S[i]) @ A
+            cost += torch.sum(A**2 * S[i] * self.beta)
+
+        return X_bar, cost
+
+    def loss_non_differentiable(
+        self,
+        A: torch.Tensor,
+        index: int,
+    ) -> (torch.Tensor, torch.Tensor):
+        """
+        Non-differentiable loss function to measure cost (requires fixed ordering)
+        :param A: Actions to take for each variable
+        :param index: The index of the instance to be explained
+        :return: (X_bar, cost) where X_bar is the sorted values and cost total cost of applying A with ordering fixed_ordering.
+        """
+        # Initialize result tensors
+        X_bar = self.X[index].clone()
+        S = torch.argsort(self.fixed_ordering)
         cost = 0
 
         for i in range(self.W_adjacency.shape[0]):
@@ -110,6 +135,7 @@ class CausalRecourseGeneration:
         index: int,
         classifier_margin: float = 0.02,
         max_epochs: int = 2_000,
+        optimise_ordering: bool = True,
     ):
         """
         Optimisation
@@ -128,7 +154,10 @@ class CausalRecourseGeneration:
 
         for i in range(max_epochs):
             # Maximise wrt C
-            X_bar, cost = self.loss_differentiable(A=A, O=O, index=index)
+            if optimise_ordering:
+                X_bar, cost = self.loss_differentiable(A=A, O=O, index=index)
+            else:
+                X_bar, cost = self.loss_non_differentiable(A=A, index=index)
             constraint = X_bar @ self.W_classifier - classifier_margin
             max_loss = (C * constraint) - cost
 
@@ -137,7 +166,10 @@ class CausalRecourseGeneration:
             max_optimiser.step()
 
             # Minimise wrt A, O, beta
-            X_bar, cost = self.loss_differentiable(A=A, O=O, index=index)
+            if optimise_ordering:
+                X_bar, cost = self.loss_differentiable(A=A, O=O, index=index)
+            else:
+                X_bar, cost = self.loss_non_differentiable(A=A, index=index)
             constraint = X_bar @ self.W_classifier - classifier_margin
             min_loss = cost - (C * constraint)
 
@@ -189,10 +221,18 @@ class CausalRecourseGeneration:
             torch.zeros(self.X.shape[1], dtype=torch.float32, requires_grad=True)
             for _ in range(self.X.shape[0])
         ]
-        O_list = [
-            torch.rand(self.X.shape[1], dtype=torch.float32, requires_grad=True)
-            for _ in range(self.X.shape[0])
-        ]
+        if self.fixed_ordering is None:
+            O_list = [
+                torch.rand(self.X.shape[1], dtype=torch.float32, requires_grad=True)
+                for _ in range(self.X.shape[0])
+            ]
+        else:
+            O_list = [
+                torch.tensor(
+                    self.fixed_ordering, dtype=torch.float32, requires_grad=False
+                )
+                for _ in range(self.X.shape[0])
+            ]
 
         # Create tensors to collect results
         X_recourse = torch.zeros(self.X.shape)
@@ -200,8 +240,6 @@ class CausalRecourseGeneration:
         actions = torch.zeros(self.X.shape)
         costs = torch.zeros(self.X.shape[0])
         probs = torch.zeros(self.X.shape[0])
-
-        # TODO: Parallelise
 
         # Loop through each row
         for i in tqdm(range(self.X.shape[0])):
@@ -214,12 +252,19 @@ class CausalRecourseGeneration:
 
             # Handle optimisers
             max_optimiser = optim.SGD([C], lr=1e-2)
-            min_optimiser = optim.SGD(
-                [
-                    {"params": [A], "lr": 1e-2},
-                    {"params": [O], "lr": 1e-2},
-                ]
-            )
+            if self.fixed_ordering is None:
+                min_optimiser = optim.SGD(
+                    [
+                        {"params": [A], "lr": 1e-2},
+                        {"params": [O], "lr": 1e-2},
+                    ]
+                )
+            else:
+                min_optimiser = optim.SGD(
+                    [
+                        {"params": [A], "lr": 1e-2},
+                    ]
+                )
 
             X_bar, ordering, action, cost, prob = self.optimisation(
                 C=C,
@@ -230,6 +275,7 @@ class CausalRecourseGeneration:
                 index=i,
                 classifier_margin=classifier_margin,
                 max_epochs=max_epochs,
+                optimise_ordering=(self.fixed_ordering is None),
             )
 
             # Collect results
@@ -259,19 +305,34 @@ class CausalRecourseGeneration:
 
 class CausalRecourseGenerationParallel(CausalRecourseGeneration):
     @staticmethod
-    def worker(index, instance, classifier_margin, max_epochs):
+    def worker(index, instance, classifier_margin, max_epochs, optimise_ordering):
         """Modified worker function to accept the instance as an argument."""
         C = torch.rand(1, dtype=torch.float32, requires_grad=True)
         A = torch.zeros(instance.X.shape[1], dtype=torch.float32, requires_grad=True)
-        O = torch.rand(instance.X.shape[1], dtype=torch.float32, requires_grad=True)
+        if optimise_ordering:
+            O = torch.rand(instance.X.shape[1], dtype=torch.float32, requires_grad=True)
+        else:
+            O = (
+                torch.ones(
+                    instance.X.shape[1], dtype=torch.float32, requires_grad=False
+                )
+                * instance.fixed_ordering
+            )
 
         max_optimiser = optim.SGD([C], lr=1e-2)
-        min_optimiser = optim.SGD(
-            [
-                {"params": [A], "lr": 1e-2},
-                {"params": [O], "lr": 1e-2},
-            ]
-        )
+        if optimise_ordering:
+            min_optimiser = optim.SGD(
+                [
+                    {"params": [A], "lr": 1e-2},
+                    {"params": [O], "lr": 1e-2},
+                ]
+            )
+        else:
+            min_optimiser = optim.SGD(
+                [
+                    {"params": [A], "lr": 1e-2},
+                ]
+            )
 
         X_bar, ordering, A, cost, prob = instance.optimisation(
             C=C,
@@ -282,6 +343,7 @@ class CausalRecourseGenerationParallel(CausalRecourseGeneration):
             index=index,
             classifier_margin=classifier_margin,
             max_epochs=max_epochs,
+            optimise_ordering=optimise_ordering,
         )
 
         # Detaching tensors from the computation graph before returning them
@@ -310,6 +372,7 @@ class CausalRecourseGenerationParallel(CausalRecourseGeneration):
             instance=self,
             classifier_margin=classifier_margin,
             max_epochs=max_epochs,
+            optimise_ordering=(self.fixed_ordering is None),
         )
 
         with mp.Pool(processes=num_processes) as pool:
@@ -352,7 +415,7 @@ if __name__ == "__main__":
     # FIXED PARAMETERS
     beta = torch.tensor([1, 1, 1, 1], dtype=torch.float32, requires_grad=True)
     # X = torch.tensor([[-1, -2, -5, -1], [-3, -6, 3, -6]], dtype=torch.float32)
-    X = torch.rand(25, 4, dtype=torch.float32)
+    X = torch.rand(100, 4, dtype=torch.float32)
     W_adjacency = torch.tensor(
         [[0, 0, 0, 0], [0.3, 0, 0, 0], [0.2, 0, 0, 0], [0, 0.2, 0.3, 0]],
         dtype=torch.float32,
@@ -365,6 +428,7 @@ if __name__ == "__main__":
         W_classifier=W_classifier,
         beta=beta,
         sorter=SoftSort(tau=0.1),
+        fixed_ordering=torch.Tensor([0, 1, 2, 3]),
     )
 
     # Gen recourse
