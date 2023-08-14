@@ -1,11 +1,22 @@
 from numba import jit
 import numpy as np
 from itertools import product
-import time
+from typing import Generator
 
 
 @jit(nopython=True)
-def has_cycle_optimized(matrix, node, visited, current_path):
+def has_cycle_optimized(
+    matrix: np.ndarray, node: int, visited: np.ndarray, current_path: np.ndarray
+) -> bool:
+    """
+    Check for cycle in the adjacency matrix.
+
+    :param matrix: The adjacency matrix.
+    :param node: The current node being checked.
+    :param visited: An array indicating which nodes have been visited.
+    :param current_path: An array indicating nodes in the current path.
+    :return: True if a cycle is detected, otherwise False.
+    """
     if current_path[node]:
         return True
 
@@ -25,8 +36,17 @@ def has_cycle_optimized(matrix, node, visited, current_path):
     return False
 
 
-def add_edges_generator_fixed(matrix, row, N):
-    """A generator version of the add_edges function."""
+def add_edges_generator_fixed(
+    matrix: np.ndarray, row: int, N: int
+) -> Generator[np.ndarray, None, None]:
+    """
+    A generator version of the add_edges function.
+
+    :param matrix: The adjacency matrix.
+    :param row: The current row being populated in the matrix.
+    :param N: The dimension of the matrix (N x N).
+    :yield: Yield valid DAG matrices one-by-one.
+    """
     if row == N:
         yield matrix.copy()
         return
@@ -46,7 +66,13 @@ def add_edges_generator_fixed(matrix, row, N):
             yield from add_edges_generator_fixed(new_matrix, row + 1, N)
 
 
-def dag_generator(N):
+def dag_generator(N: int) -> Generator[np.ndarray, None, None]:
+    """
+    Generate DAGs for a given number of nodes.
+
+    :param N: Number of nodes.
+    :return: A generator yielding valid DAG matrices for the given number of nodes.
+    """
     return add_edges_generator_fixed(np.zeros((N, N), dtype=np.int8), 0, N)
 
 

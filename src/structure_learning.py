@@ -4,7 +4,6 @@ import pandas as pd
 import torch
 from typing import List
 import matplotlib.pyplot as plt
-import itertools
 
 from src.dagma.linear import DagmaLinear
 from src.dagma.nonlinear import DagmaMLP, DagmaNonlinear
@@ -19,15 +18,6 @@ def process_df(df: pd.DataFrame) -> (np.ndarray, List):
     labels = list(df.columns)
     df = df.to_numpy().astype(np.float32)
     return df, labels
-
-
-def all_graph_permutations(labels: List) -> None:
-    """
-    Generate all possible permutations of the graph
-    :param labels:
-    :return:
-    """
-    # Generate all permutations of the graph
 
 
 def dagma_linear(
