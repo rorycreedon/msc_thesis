@@ -3,43 +3,8 @@ import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-
-
-def eval_actions(
-    X: torch.Tensor,
-    W_adjacency: torch.Tensor,
-    ordering: torch.Tensor,
-    beta: torch.Tensor,
-    A: torch.Tensor,
-) -> (torch.Tensor, torch.Tensor):
-    """
-    Evaluate a set of actions and orderings.
-    :param X: The original values of each feature
-    :param W_adjacency: A weighted adjacency matrix
-    :param ordering: The ordering of the actions
-    :param beta: The beta values for each feature
-    :param A: The actions to be evaluated
-    :return: (X_bar, cost) where X_bar is the new values of each feature and cost is the cost of each action
-    """
-    X_bar = X.clone()
-    S = torch.argsort(ordering)
-    cost = torch.zeros(X.shape[0])
-    A_ordered = torch.gather(A, 1, S)
-    W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
-
-    if beta.dim() == 1:
-        for i in range(X.shape[1]):
-            X_bar += W_temp[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
-            cost += A_ordered[:, i] ** 2 * beta[S[:, i]]
-    elif beta.dim() == 2:
-        beta_ordered = torch.gather(beta, 1, S)
-        for i in range(X.shape[1]):
-            X_bar += W_temp[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
-            cost += A_ordered[:, i] ** 2 * beta_ordered[:, i]
-    else:
-        raise ValueError("Beta must be a 1D or 2D tensor")
-
-    return X_bar, cost
+import time
+from typing import Union
 
 
 class SoftSort(nn.Module):
@@ -158,18 +123,18 @@ class CausalRecourseGenerator:
         #     raise ValueError("Beta must have the same number of features as X")
         self.beta = beta
 
-    def set_sorter(self, tau: float, hard: bool = True, power: float = 1.0) -> None:
+    def set_sorter(self, tau: float, power: float = 1.0) -> None:
         """
         Update the sorter
         :param tau: The temperature parameter
         :param hard: Whether to use soft or hard sorting
         :param power: The power to use in the semi-metric d
         """
-        self.sorter = SoftSort(tau=tau, hard=hard, power=power)
+        self.sorter = SoftSort(tau=tau, hard=True, power=power)
 
     def loss_differentiable(
         self, A: torch.Tensor, O: torch.Tensor
-    ) -> (torch.Tensor, torch.Tensor):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Differentiable, batched loss function to measure cost (uses SoftSort)
         :param A: Actions to take for each variable
@@ -179,7 +144,7 @@ class CausalRecourseGenerator:
         # Init result tensors
         X_bar = self.X.clone()
         S = self.sorter(O)
-        cost = torch.zeros(X.shape[0])
+        cost = torch.zeros(self.X.shape[0])
 
         for i in range(self.W_adjacency.shape[0]):
             X_bar += (
@@ -189,7 +154,9 @@ class CausalRecourseGenerator:
 
         return X_bar, cost
 
-    def loss_non_differentiable(self, A: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+    def loss_non_differentiable(
+        self, A: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Non-differentiable, batched loss function to measure cost (requires fixed ordering)
         :param A: Actions to take for each variable
@@ -221,12 +188,18 @@ class CausalRecourseGenerator:
         max_epochs: int = 5_000,
         lr: float = 1e-2,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+        format_as_df: bool = True,
+    ) -> Union[
+        pd.DataFrame,
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         """
+        Generate recourse actions (and orderings)
         :param classifier_margin: The margin of the classifier
         :param max_epochs: The maximum number of epochs to run
         :param lr: learning rate
         :param verbose: Whether to print progress
+        :param format_as_df: Whether to format the output as a dataframe
         :return: X_bar: the updated feature values after recourse, O: the ordering of actions, A: the actions, cost: the cost of recourse, prob: the probability of positive classification
         """
         # Check positive classifier margin
@@ -235,25 +208,18 @@ class CausalRecourseGenerator:
         ), "Classifier margin must be greater than or equal to 0"
 
         # Initialise parameters
-        C = torch.rand(self.X.shape[0], dtype=torch.float64, requires_grad=True)
+        lambda1 = torch.rand(self.X.shape[0], dtype=torch.float64, requires_grad=True)
         A = torch.zeros(self.X.shape, dtype=torch.float64, requires_grad=True)
         O = torch.rand(self.X.shape, dtype=torch.float64, requires_grad=True)
 
         # Handle optimisers
-        max_optimiser = optim.SGD([C], lr=lr)
+        max_optimiser = optim.SGD([lambda1], lr=lr)
+        param_list = [{"params": [A], "lr": lr}]
         if self.learn_ordering:
-            min_optimiser = optim.SGD(
-                [
-                    {"params": [A], "lr": lr},
-                    {"params": [O], "lr": lr},
-                ]
-            )
-        else:
-            min_optimiser = optim.SGD(
-                [
-                    {"params": [A], "lr": lr},
-                ]
-            )
+            param_list.append({"params": [O], "lr": lr})
+        if self.learn_beta:
+            param_list.append({"params": [self.beta], "lr": lr})
+        min_optimiser = optim.SGD(param_list)
 
         objective_list = []
         constraint_list = []
@@ -267,7 +233,7 @@ class CausalRecourseGenerator:
             constraint = (
                 X_bar @ self.W_classifier + self.b_classifier - classifier_margin
             )
-            max_loss = torch.sum((C * constraint) - cost)
+            max_loss = torch.sum((lambda1 * constraint) - cost)
 
             max_optimiser.zero_grad()
             max_loss.backward()
@@ -281,7 +247,7 @@ class CausalRecourseGenerator:
             constraint = (
                 X_bar @ self.W_classifier + self.b_classifier - classifier_margin
             )
-            min_loss = torch.sum(cost - (C * constraint))
+            min_loss = torch.sum(cost - (lambda1 * constraint))
 
             min_optimiser.zero_grad()
             min_loss.backward()
@@ -304,29 +270,47 @@ class CausalRecourseGenerator:
                     f"Epoch {epoch}: Objective: {objective_list[-1]}, Constraint: {constraint_list[-1]}"
                 )
 
-        # Clean for dataframe
-        X_recourse = X_bar.detach()
-        if self.learn_ordering:
-            action_order = torch.max(self.sorter(O), dim=1)[1].detach()
+        if format_as_df:
+            # Clean for dataframe
+            X_recourse = X_bar.detach()
+            if self.learn_ordering:
+                action_order = torch.max(self.sorter(O), dim=1)[1].detach()
+            else:
+                action_order = self.fixed_ordering
+            actions = A.detach()
+            costs = cost.detach()
+            probs = torch.sigmoid(constraint + classifier_margin).detach()
+
+            data = {f"X{i+1}": X_recourse[:, i] for i in range(self.X.shape[1])}
+            data.update({f"a{i+1}": actions[:, i] for i in range(self.X.shape[1])})
+            data.update(
+                {f"order{i+1}": action_order[:, i] for i in range(self.X.shape[1])}
+            )
+            data.update({"cost": costs, "prob": probs})
+
+            df = pd.DataFrame(data)
+
+            return df
+
         else:
-            action_order = self.fixed_ordering
-        actions = A.detach()
-        costs = cost.detach()
-        probs = torch.sigmoid(constraint + classifier_margin).detach()
-
-        data = {f"X{i+1}": X_recourse[:, i] for i in range(self.X.shape[1])}
-        data.update({f"a{i+1}": actions[:, i] for i in range(self.X.shape[1])})
-        data.update({f"order{i+1}": action_order[:, i] for i in range(self.X.shape[1])})
-        data.update({"cost": costs, "prob": probs})
-
-        df = pd.DataFrame(data)
-
-        return df
+            if self.learn_ordering:
+                action_order = torch.max(self.sorter(O), dim=1)[1].detach()
+            else:
+                action_order = self.fixed_ordering
+            return (
+                X_bar.detach(),
+                action_order.detach(),
+                A.detach(),
+                cost.detach(),
+                torch.sigmoid(constraint + classifier_margin).detach(),
+            )
 
 
 if __name__ == "__main__":
+    N = 500
+
     # FIXED PARAMETERS
-    X = torch.rand(1000, 4, dtype=torch.float64)
+    X = torch.rand(N, 4, dtype=torch.float64)
     W_adjacency = torch.tensor(
         [[0, 0, 0, 0], [0.3, 0, 0, 0], [0.2, 0, 0, 0], [0, 0.2, 0.3, 0]],
         dtype=torch.float64,
@@ -340,11 +324,14 @@ if __name__ == "__main__":
         X=X, W_adjacency=W_adjacency, W_classifier=W_classifier, b_classifier=0.5
     )
     recourse_gen.set_beta(beta)
-    recourse_gen.set_ordering(torch.arange(4).repeat(1000, 1))
-    recourse_gen.set_sorter(tau=0.1, hard=True)
+    recourse_gen.set_ordering(torch.arange(4).repeat(N, 1))
+    recourse_gen.set_sorter(tau=0.1)
+
+    start = time.time()
     df = recourse_gen.gen_recourse(
         classifier_margin=0.02, max_epochs=5_000, verbose=True
     )
+    print(f"Time taken: {time.time() - start} seconds")
 
     # Gen recourse
     print(df.head())
