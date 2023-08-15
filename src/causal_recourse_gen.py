@@ -5,6 +5,43 @@ import numpy as np
 import pandas as pd
 
 
+def eval_actions(
+    X: torch.Tensor,
+    W_adjacency: torch.Tensor,
+    ordering: torch.Tensor,
+    beta: torch.Tensor,
+    A: torch.Tensor,
+) -> (torch.Tensor, torch.Tensor):
+    """
+    Evaluate a set of actions and orderings.
+    :param X: The original values of each feature
+    :param W_adjacency: A weighted adjacency matrix
+    :param ordering: The ordering of the actions
+    :param beta: The beta values for each feature
+    :param A: The actions to be evaluated
+    :return: (X_bar, cost) where X_bar is the new values of each feature and cost is the cost of each action
+    """
+    X_bar = X.clone()
+    S = torch.argsort(ordering)
+    cost = torch.zeros(X.shape[0])
+    A_ordered = torch.gather(A, 1, S)
+    W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
+
+    if beta.dim() == 1:
+        for i in range(X.shape[1]):
+            X_bar += W_temp[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+            cost += A_ordered[:, i] ** 2 * beta[S[:, i]]
+    elif beta.dim() == 2:
+        beta_ordered = torch.gather(beta, 1, S)
+        for i in range(X.shape[1]):
+            X_bar += W_temp[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+            cost += A_ordered[:, i] ** 2 * beta_ordered[:, i]
+    else:
+        raise ValueError("Beta must be a 1D or 2D tensor")
+
+    return X_bar, cost
+
+
 class SoftSort(nn.Module):
     """
     Code used from paper "SoftSort: A Continuous Relaxation for the argsort Operator" (Prillo and Eisenschlos, 2020)
@@ -43,7 +80,7 @@ class SoftSort(nn.Module):
         return P_hat
 
 
-class CausalRecourseGeneration:
+class CausalRecourseGenerator:
     """
     Class that implements causal recourse generation.
     """
@@ -58,7 +95,7 @@ class CausalRecourseGeneration:
         :param learn_beta: Whether to learn the beta values
         :param learn_ordering: Whether to learn the ordering of the features
         """
-        super(CausalRecourseGeneration, self).__init__()
+        super(CausalRecourseGenerator, self).__init__()
         self.learn_beta = learn_beta
         self.learn_ordering = learn_ordering
         if self.learn_ordering is True:
@@ -117,8 +154,8 @@ class CausalRecourseGeneration:
         Set the beta values
         :param beta: The beta values
         """
-        if beta.shape[0] != self.X.shape[1]:
-            raise ValueError("Beta must have the same number of features as X")
+        # if beta.shape[0] != self.X.shape[1]:
+        #     raise ValueError("Beta must have the same number of features as X")
         self.beta = beta
 
     def set_sorter(self, tau: float, hard: bool = True, power: float = 1.0) -> None:
@@ -164,9 +201,17 @@ class CausalRecourseGeneration:
         cost = torch.zeros(self.X.shape[0])
         A_ordered = torch.gather(A, 1, S)
 
-        for i in range(self.W_adjacency.shape[0]):
-            X_bar += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
-            cost += A_ordered[:, i] ** 2 * self.beta[S[:, i]]
+        if self.beta.dim() == 1:
+            for i in range(self.W_adjacency.shape[0]):
+                X_bar += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+                cost += A_ordered[:, i] ** 2 * self.beta[S[:, i]]
+        elif self.beta.dim() == 2:
+            beta_ordered = torch.gather(self.beta, 1, S)
+            for i in range(self.W_adjacency.shape[0]):
+                X_bar += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+                cost += A_ordered[:, i] ** 2 * beta_ordered[:, i]
+        else:
+            raise ValueError("Beta must be a 1D or 2D tensor")
 
         return X_bar, cost
 
@@ -176,7 +221,7 @@ class CausalRecourseGeneration:
         max_epochs: int = 5_000,
         lr: float = 1e-2,
         verbose: bool = False,
-    ) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+    ) -> pd.DataFrame:
         """
         :param classifier_margin: The margin of the classifier
         :param max_epochs: The maximum number of epochs to run
@@ -290,7 +335,7 @@ if __name__ == "__main__":
     beta = torch.tensor([0.5, 0.5, 0.5, 0.5], dtype=torch.float64)
 
     # GEN RECOURSE
-    recourse_gen = CausalRecourseGeneration(learn_beta=False, learn_ordering=True)
+    recourse_gen = CausalRecourseGenerator(learn_beta=False, learn_ordering=True)
     recourse_gen.add_data(
         X=X, W_adjacency=W_adjacency, W_classifier=W_classifier, b_classifier=0.5
     )
