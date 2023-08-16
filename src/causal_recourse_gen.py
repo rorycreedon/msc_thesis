@@ -9,7 +9,7 @@ from typing import Union
 import matplotlib.pyplot as plt
 import matplotlib
 
-matplotlib.use("TkAgg")
+#matplotlib.use("TkAgg")
 
 
 class SoftSort(nn.Module):
@@ -128,7 +128,7 @@ class CausalRecourseGenerator:
         """
         if ordering.shape != self.X.shape:
             raise ValueError("Ordering must have the same shape as X")
-        self.fixed_ordering = ordering
+        self.fixed_ordering = ordering.to(self.device)
 
     def set_beta(self, beta: torch.Tensor) -> None:
         """
@@ -137,7 +137,7 @@ class CausalRecourseGenerator:
         """
         # if beta.shape[0] != self.X.shape[1]:
         #     raise ValueError("Beta must have the same number of features as X")
-        self.beta = beta
+        self.beta = beta.to(self.device)
 
     def set_sorter(self, tau: float, power: float = 1.0) -> None:
         """
@@ -160,7 +160,7 @@ class CausalRecourseGenerator:
         # Init result tensors
         X_bar = self.X.clone()
         S = self.sorter(O)
-        cost = torch.zeros(self.X.shape[0])
+        cost = torch.zeros(self.X.shape[0]).to(self.device)
 
         for i in range(self.W_adjacency.shape[0]):
             X_bar += (
@@ -181,7 +181,7 @@ class CausalRecourseGenerator:
         # Initialize result tensors
         X_bar = self.X.clone()
         S = torch.argsort(self.fixed_ordering)
-        cost = torch.zeros(self.X.shape[0])
+        cost = torch.zeros(self.X.shape[0]).to(self.device)
         A_ordered = torch.gather(A, 1, S)
 
         if self.beta.dim() == 1:
@@ -225,14 +225,12 @@ class CausalRecourseGenerator:
 
         # Initialise parameters
         lambda1 = torch.rand(
-            self.X.shape[0], dtype=torch.float64, requires_grad=True
-        ).to(self.device)
-        A = torch.zeros(self.X.shape, dtype=torch.float64, requires_grad=True).to(
-            self.device
-        )
-        O = torch.rand(self.X.shape, dtype=torch.float64, requires_grad=True).to(
-            self.device
-        )
+            self.X.shape[0], dtype=torch.float64).to(self.device)
+        lambda1.requires_grad=True
+        A = torch.zeros(self.X.shape, dtype=torch.float64).to(self.device)
+        A.requires_grad=True
+        O = torch.rand(self.X.shape, dtype=torch.float64).to(self.device)
+        O.requires_grad=True        
 
         # Handle optimisers
         max_optimiser = optim.SGD([lambda1], lr=lr)
