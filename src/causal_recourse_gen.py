@@ -18,17 +18,25 @@ class SoftSort(nn.Module):
     Source: https://github.com/sprillo/softsort/blob/master/pytorch/softsort.py
     """
 
-    def __init__(self, tau: float = 1.0, hard: bool = False, power: float = 1.0):
+    def __init__(
+        self,
+        tau: float = 1.0,
+        hard: bool = False,
+        power: float = 1.0,
+        device: str = "cpu",
+    ):
         """
         Initialize the class
         :param tau: temperature parameter
         :param hard: whether to use soft or hard sorting
         :param power: power to use in the semi-metric d
+        :param device: device to use
         """
         super(SoftSort, self).__init__()
         self.hard = hard
         self.tau = tau
         self.power = power
+        self.device = device
 
     def forward(self, scores: torch.Tensor) -> torch.Tensor:
         """
@@ -44,7 +52,7 @@ class SoftSort(nn.Module):
         P_hat = pairwise_diff.softmax(-1)
 
         if self.hard:
-            P = torch.zeros_like(P_hat, device=P_hat.device)
+            P = torch.zeros_like(P_hat, device=self.device)
             P.scatter_(-1, P_hat.topk(1, -1)[1], value=1)
             P_hat = (P - P_hat).detach() + P_hat
         return P_hat
@@ -111,7 +119,7 @@ class CausalRecourseGenerator:
             self.device
         )
         self.W_classifier = W_classifier.to(self.device)
-        self.b_classifier = b_classifier
+        self.b_classifier = torch.tensor(b_classifier).to(self.device)
 
     def set_ordering(self, ordering: torch.Tensor) -> None:
         """
@@ -120,7 +128,7 @@ class CausalRecourseGenerator:
         """
         if ordering.shape != self.X.shape:
             raise ValueError("Ordering must have the same shape as X")
-        self.fixed_ordering = ordering.to(self.device)
+        self.fixed_ordering = ordering
 
     def set_beta(self, beta: torch.Tensor) -> None:
         """
@@ -129,7 +137,7 @@ class CausalRecourseGenerator:
         """
         # if beta.shape[0] != self.X.shape[1]:
         #     raise ValueError("Beta must have the same number of features as X")
-        self.beta = beta.to(self.device)
+        self.beta = beta
 
     def set_sorter(self, tau: float, power: float = 1.0) -> None:
         """
@@ -138,7 +146,7 @@ class CausalRecourseGenerator:
         :param hard: Whether to use soft or hard sorting
         :param power: The power to use in the semi-metric d
         """
-        self.sorter = SoftSort(tau=tau, hard=True, power=power).to(self.device)
+        self.sorter = SoftSort(tau=tau, hard=True, power=power, device=self.device)
 
     def loss_differentiable(
         self, A: torch.Tensor, O: torch.Tensor
@@ -152,7 +160,7 @@ class CausalRecourseGenerator:
         # Init result tensors
         X_bar = self.X.clone()
         S = self.sorter(O)
-        cost = torch.zeros(self.X.shape[0]).to(self.device)
+        cost = torch.zeros(self.X.shape[0])
 
         for i in range(self.W_adjacency.shape[0]):
             X_bar += (
@@ -173,7 +181,7 @@ class CausalRecourseGenerator:
         # Initialize result tensors
         X_bar = self.X.clone()
         S = torch.argsort(self.fixed_ordering)
-        cost = torch.zeros(self.X.shape[0]).to(self.device)
+        cost = torch.zeros(self.X.shape[0])
         A_ordered = torch.gather(A, 1, S)
 
         if self.beta.dim() == 1:
