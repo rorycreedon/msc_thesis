@@ -311,6 +311,8 @@ class BetaLearner(CausalRecourseGenerator):
             loss = self.beta_loss(learned_beta, tanh_param=tanh_param)
             loss.backward()
             optimizer.step()
+            # Ensure beta is positive
+            learned_beta.data = torch.clamp(learned_beta.data, min=0)
             loss_list.append(loss.item())
             if verbose and epoch % 500 == 0:
                 print(f"Epoch {epoch} | Loss {loss.item()}")
@@ -322,6 +324,7 @@ class BetaLearner(CausalRecourseGenerator):
 
         if verbose:
             print(f"Learned beta: {learned_beta.detach()}")
+            print(f"Ground truth beta: {self.ground_truth_beta}")
 
         return learned_beta.detach()
 
@@ -341,20 +344,20 @@ if __name__ == "__main__":
     # GENERATE ALTERNATIVE ACTIONS AND ORDERINGS
     beta_learner = BetaLearner(
         n_comparisons=5,
-        learn_ordering=True,
+        learn_ordering=False,
         ground_truth_beta=torch.tensor([2, 1, 7, 0.2]),
     )
     beta_learner.add_data(
         X=X, W_adjacency=W_adjacency, W_classifier=W_classifier, b_classifier=0.5
     )
     beta_learner.set_beta(beta)
-    # beta_learner.set_ordering(torch.arange(4).repeat(N, 1))
-    beta_learner.set_sorter(tau=0.1)
-    beta_learner.sample_betas((0, 1))
+    beta_learner.set_ordering(torch.arange(4).repeat(N, 1))
+    # beta_learner.set_sorter(tau=0.1)
+    beta_learner.sample_betas((0, 3))
     # beta_learner.eval_sampled_betas_parallel()
     beta_learner.eval_sampled_betas()
 
     # LEARN BETA
     beta = beta_learner.learn(
-        max_epochs=5_000, lr=2e-2, l2_reg=0.1, tanh_param=50, verbose=True
+        max_epochs=5_000, lr=2e-2, l2_reg=0.1, tanh_param=20, verbose=True
     )

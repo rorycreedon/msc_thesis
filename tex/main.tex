@@ -1,7 +1,7 @@
 %%% Document packages
 \RequirePackage{fix-cm}                                                                 % Defines a specific font class to use. Fixes bf sc T1 class issue.
 \documentclass[a4paper, 11pt, twoside]{report}                                          % Defines the type of document to compile.
-\usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage[top=2.5cm,bottom=2.5cm,left=4cm,right=4cm]{geometry}
 
 % HUGE size
 \makeatletter
@@ -135,8 +135,10 @@
 \usepackage{gensymb}                                                                    % Provides generic commands for both text and math modes, like celsius, degree etc.
 \usepackage{listings}                                                                   % Provides source code in LaTeX, which is not processed. 
 
-%%% Algorithm packages
-\usepackage[ruled,vlined]{algorithm2e}                                                  % Imports a framework for defining algorithms.
+%%% rithm packages
+%\usepackage[ruled,vlined]{algorithm2e}                                                  % Imports a framework for defining algorithms.
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 %%% Table packages
 \usepackage{ltablex}                                                                    % Combines longtable (multi-page tables with varying geometric properties) into tabularx environments.
@@ -145,6 +147,7 @@
 %\usepackage{multicolumn}                                                               % Allows multiple columns to be combined in a table.
 \usepackage{tabularx}                                                                   % Creates tables that can use the alignment as is needed.
 \usepackage{booktabs}                                                                   % Creates better quality tables.
+\usepackage{comment}
 
 %%% Document development
 \usepackage[colorinlistoftodos]{todonotes}                                              % used to annotate the documents and make notes about what needs doing and what doesn't.
