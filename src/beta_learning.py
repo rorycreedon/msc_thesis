@@ -14,7 +14,6 @@ class BetaLearner(CausalRecourseGenerator):
         learn_ordering: bool = False,
     ):
         super(BetaLearner, self).__init__(
-            learn_beta=False,
             learn_ordering=learn_ordering,
         )
         self.n_comparisons = n_comparisons
