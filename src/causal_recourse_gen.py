@@ -5,11 +5,14 @@ import numpy as np
 import pandas as pd
 import time
 from typing import Union
+from scipy.stats import gaussian_kde
 
 import matplotlib.pyplot as plt
 import matplotlib
 
-#matplotlib.use("TkAgg")
+from src.kde import GaussianKDE
+
+matplotlib.use("TkAgg")
 
 
 class SoftSort(nn.Module):
@@ -92,6 +95,9 @@ class CausalRecourseGenerator:
         # Beta
         self.beta = None
 
+        # Sorted X (for percentile shift cost function)
+        self.sorted_X = None
+
     def add_data(
         self,
         X: torch.Tensor,
@@ -148,55 +154,169 @@ class CausalRecourseGenerator:
         """
         self.sorter = SoftSort(tau=tau, hard=True, power=power, device=self.device)
 
+    def sort_X(self) -> None:
+        """
+        Sort X for percentile shift cost function
+        :return: None
+        """
+        # TODO: change this to sort over whole distribution
+        # self.sorted_X = torch.sort(self.X, dim=0)[0]
+        self.sorted_X = torch.sort(
+            torch.rand(100_000, self.X.shape[1]).to(self.device), dim=0
+        )[0]
+
+    def interpolated_percentile(
+        self, X_prime: torch.Tensor, eps: float = 1e-6
+    ) -> torch.Tensor:
+        """
+        Compute percentiles of X_prime in X (including positively classified data)
+        :param X_prime: X_prime, which is being optimised
+        :param eps: Epsilon to avoid division by zero
+        :return: The percentiles of X_prime in X
+        """
+        # Find the positions where elements of X would be inserted into t
+        pos = (self.sorted_X.unsqueeze(0) < X_prime.unsqueeze(1)).sum(dim=1)
+
+        # Handle values outside the range
+        outside_range = (pos == 0) | (pos == self.sorted_X.shape[0])
+        percentiles_outside = pos.float() / self.sorted_X.shape[0]
+
+        # Handle values inside the range using linear interpolation
+        indices_i = torch.clamp(pos - 1, 0)
+        indices_i1 = torch.clamp(pos, 0, self.sorted_X.shape[0] - 1)
+
+        v_i = torch.gather(self.sorted_X, 0, indices_i)
+        v_i1 = torch.gather(self.sorted_X, 0, indices_i1)
+
+        interpolated_pos = pos - 1 + (X - v_i) / (v_i1 - v_i)
+        percentiles_inside = interpolated_pos.float() / self.sorted_X.shape[0]
+
+        # Combine results
+        final_percentiles = torch.clamp(
+            torch.where(outside_range, percentiles_outside, percentiles_inside),
+            eps,
+            1 - eps,
+        )
+
+        return final_percentiles
+
+    def log_percentile_shift(
+        self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6
+    ) -> torch.Tensor:
+        """
+        Compute the log percentile shift cost function
+        :param X_prime: X_prime, which is being optimised
+        :param eps: Epsilon to add to percentiles to avoid log(0)
+        :return: The log percentile shift cost function
+        """
+        original_percentiles = self.interpolated_percentile(X_prime, eps)
+        new_percentiles = self.interpolated_percentile(X_prime + A, eps)
+        return torch.abs(torch.log((1 - new_percentiles) / (1 - original_percentiles)))
+
+    def define_kde(self):
+        # self.kde = GaussianKDE(data=self.X), deivce=self.device)
+        self.kde = GaussianKDE(
+            data=torch.rand(100_000, self.X.shape[1]), device=self.device
+        )
+
+    def log_kde_shift(self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6):
+        """
+        Compute the KDE shift cost function
+        :param X_prime: X_prime, which is being optimised
+        :param A: Actions to take for each variable
+        :param eps: Epsilon to add to percentiles to avoid log(0)
+        :return: The log percentile shift cost function
+        """
+        original_percentiles = self.kde.integrate_neg_inf(X_prime)
+        new_percentiles = self.kde.integrate_neg_inf(X_prime + A)
+        return torch.abs(
+            torch.log((1 - new_percentiles + eps) / (1 - original_percentiles + eps))
+        )
+
     def loss_differentiable(
-        self, A: torch.Tensor, O: torch.Tensor
+        self, A: torch.Tensor, O: torch.Tensor, cost_function: str = "l2_norm"
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        Differentiable, batched loss function to measure cost (uses SoftSort)
+        Differentiable loss function to measure cost (uses SoftSort)
+        :param cost_function: Cost function to use
         :param A: Actions to take for each variable
         :param O: The initial ordering of the features
-        :return: (X_bar, cost) where X_bar is the sorted values and cost total cost of applying A with ordering O.
+        :return: (X_prime, cost) where X_prime is the sorted values and cost total cost of applying A with ordering O.
         """
         # Init result tensors
-        X_bar = self.X.clone()
+        X_prime = self.X.clone()
         S = self.sorter(O)
         cost = torch.zeros(self.X.shape[0]).to(self.device)
 
         for i in range(self.W_adjacency.shape[0]):
-            X_bar += (
+            if cost_function == "kde_shift":
+                cost += torch.sum(
+                    self.log_kde_shift(X_prime, A * S[:, i]) * self.beta, dim=1
+                )
+            elif cost_function == "percentile_shift":
+                cost += torch.sum(
+                    self.log_percentile_shift(X_prime, A * S[:, i]) * self.beta, dim=1
+                )
+            elif cost_function == "l2_norm":
+                cost += torch.sum(A**2 * S[:, i] * self.beta, dim=1)
+            else:
+                raise ValueError("Cost function not recognised")
+            assert (cost >= 0).all(), "Cost should be positive"
+            X_prime += (
                 (self.W_adjacency.T * S[:, i].unsqueeze(-1)) @ A.unsqueeze(-1)
             ).squeeze(-1)
-            cost += torch.sum(A**2 * S[:, i] * self.beta, dim=1)
 
-        return X_bar, cost
+        return X_prime, cost
 
     def loss_non_differentiable(
-        self, A: torch.Tensor
+        self, A: torch.Tensor, cost_function: str = "l2_norm"
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Non-differentiable, batched loss function to measure cost (requires fixed ordering)
         :param A: Actions to take for each variable
-        :return: (X_bar, cost) where X_bar is the sorted values and cost total cost of applying A with ordering fixed_ordering.
+        :param cost_funtion: The cost function to use
+        :return: (X_prime, cost) where X_prime is the sorted values and cost total cost of applying A with ordering fixed_ordering.
         """
         # Initialize result tensors
-        X_bar = self.X.clone()
+        X_prime = self.X.clone()
         S = torch.argsort(self.fixed_ordering)
         cost = torch.zeros(self.X.shape[0]).to(self.device)
         A_ordered = torch.gather(A, 1, S)
 
         if self.beta.dim() == 1:
             for i in range(self.W_adjacency.shape[0]):
-                X_bar += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
-                cost += A_ordered[:, i] ** 2 * self.beta[S[:, i]]
+                if cost_function == "percentile_shift":
+                    cost += torch.sum(
+                        self.log_percentile_shift(
+                            torch.gather(X_prime, 1, S)[:, i], A_ordered[:, i] * S[:, i]
+                        )
+                        * self.beta[S[:, i]],
+                        dim=1,
+                    )
+                elif cost_function == "l2_norm":
+                    cost += A_ordered[:, i] ** 2 * self.beta[S[:, i]]
+                else:
+                    raise ValueError("Cost function not recognised")
+                X_prime += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
         elif self.beta.dim() == 2:
             beta_ordered = torch.gather(self.beta, 1, S)
             for i in range(self.W_adjacency.shape[0]):
-                X_bar += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
-                cost += A_ordered[:, i] ** 2 * beta_ordered[:, i]
+                if cost_function == "percentile_shift":
+                    cost += torch.sum(
+                        self.log_percentile_shift(X_prime, A_ordered[:, i] * S[:, i])
+                        * beta_ordered[:, i],
+                        dim=1,
+                    )
+                elif cost_function == "l2_norm":
+                    cost += A_ordered[:, i] ** 2 * beta_ordered[:, i]
+                else:
+                    raise ValueError("Cost function not recognised")
+                assert (cost >= 0).all(), "Cost should be positive"
+                X_prime += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
         else:
             raise ValueError("Beta must be a 1D or 2D tensor")
 
-        return X_bar, cost
+        return X_prime, cost
 
     def gen_recourse(
         self,
@@ -205,6 +325,7 @@ class CausalRecourseGenerator:
         lr: float = 1e-2,
         verbose: bool = False,
         format_as_df: bool = True,
+        cost_function: str = "l2_norm",
     ) -> Union[
         pd.DataFrame,
         tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
@@ -216,7 +337,8 @@ class CausalRecourseGenerator:
         :param lr: learning rate
         :param verbose: Whether to print progress
         :param format_as_df: Whether to format the output as a dataframe
-        :return: X_bar: the updated feature values after recourse, O: the ordering of actions, A: the actions, cost: the cost of recourse, prob: the probability of positive classification
+        :param cost_function: The cost function to use
+        :return: X_prime: the updated feature values after recourse, O: the ordering of actions, A: the actions, cost: the cost of recourse, prob: the probability of positive classification
         """
         # Check positive classifier margin
         assert (
@@ -224,13 +346,12 @@ class CausalRecourseGenerator:
         ), "Classifier margin must be greater than or equal to 0"
 
         # Initialise parameters
-        lambda1 = torch.rand(
-            self.X.shape[0], dtype=torch.float64).to(self.device)
-        lambda1.requires_grad=True
+        lambda1 = torch.rand(self.X.shape[0], dtype=torch.float64).to(self.device)
+        lambda1.requires_grad = True
         A = torch.zeros(self.X.shape, dtype=torch.float64).to(self.device)
-        A.requires_grad=True
+        A.requires_grad = True
         O = torch.rand(self.X.shape, dtype=torch.float64).to(self.device)
-        O.requires_grad=True        
+        O.requires_grad = True
 
         # Handle optimisers
         max_optimiser = optim.SGD([lambda1], lr=lr)
@@ -242,14 +363,24 @@ class CausalRecourseGenerator:
         objective_list = []
         constraint_list = []
 
+        # Sort X if percentile shift is used
+        if cost_function == "percentile_shift":
+            self.sort_X()
+        elif cost_function == "kde_shift":
+            self.define_kde()
+
         for epoch in range(max_epochs):
             # Maximise wrt C
             if self.learn_ordering:
-                X_bar, cost = self.loss_differentiable(A=A, O=O)
+                X_prime, cost = self.loss_differentiable(
+                    A=A, O=O, cost_function=cost_function
+                )
             else:
-                X_bar, cost = self.loss_non_differentiable(A=A)
+                X_prime, cost = self.loss_non_differentiable(
+                    A=A, cost_function=cost_function
+                )
             constraint = (
-                X_bar @ self.W_classifier + self.b_classifier - classifier_margin
+                X_prime @ self.W_classifier + self.b_classifier - classifier_margin
             )
             max_loss = torch.sum((lambda1 * constraint) - cost)
 
@@ -257,14 +388,22 @@ class CausalRecourseGenerator:
             max_loss.backward()
             max_optimiser.step()
 
+            if epoch % 100 == 0 and verbose:
+                print(f"lambda value: {lambda1}")
+                print(f"grad on lambda: {lambda1.grad}")
+
             # Minimise wrt A, O, beta
             if self.learn_ordering:
-                X_bar, cost = self.loss_differentiable(A=A, O=O)
+                X_prime, cost = self.loss_differentiable(
+                    A=A, O=O, cost_function=cost_function
+                )
             else:
-                X_bar, cost = self.loss_non_differentiable(A=A)
+                X_prime, cost = self.loss_non_differentiable(
+                    A=A, cost_function=cost_function
+                )
             constraint = (
-                X_bar @ self.W_classifier + self.b_classifier - classifier_margin
-            )
+                X_prime @ self.W_classifier + self.b_classifier - classifier_margin
+            )  # TODO: see if this works for any (differentiable) classifier
             min_loss = torch.sum(cost - (lambda1 * constraint))
 
             min_optimiser.zero_grad()
@@ -283,10 +422,12 @@ class CausalRecourseGenerator:
             ):
                 break
 
-            if epoch % 500 == 0 and verbose:
+            if epoch % 100 == 0 and verbose:
                 print(
                     f"Epoch {epoch}: Objective: {objective_list[-1]}, Constraint: {constraint_list[-1]}"
                 )
+                print(f"A value: {A}")
+                print(f"grad on A: {A.grad}\n")
 
         plt.plot(objective_list, color="blue", label="Objective")
         ax = plt.gca()
@@ -301,9 +442,9 @@ class CausalRecourseGenerator:
 
         if format_as_df:
             # Clean for dataframe
-            X_recourse = X_bar.detach().to("cpu")
+            X_recourse = X_prime.detach().to("cpu")
             if self.learn_ordering:
-                action_order = torch.max(self.sorter(O), dim=1)[1].detach().to("cpu")
+                action_order = torch.max(self.sorter(O), dim=2)[1].detach().to("cpu")
             else:
                 action_order = self.fixed_ordering.to("cpu")
             actions = A.detach().to("cpu")
@@ -327,7 +468,7 @@ class CausalRecourseGenerator:
             else:
                 action_order = self.fixed_ordering.to("cpu")
             return (
-                X_bar.detach().to("cpu"),
+                X_prime.detach().to("cpu"),
                 action_order.detach().to("cpu"),
                 A.detach().to("cpu"),
                 cost.detach().to("cpu"),
@@ -336,7 +477,7 @@ class CausalRecourseGenerator:
 
 
 if __name__ == "__main__":
-    N = 500
+    N = 1
 
     # FIXED PARAMETERS
     X = torch.rand(N, 4, dtype=torch.float64)
@@ -358,10 +499,17 @@ if __name__ == "__main__":
 
     start = time.time()
     df = recourse_gen.gen_recourse(
-        classifier_margin=0.02, max_epochs=5_000, verbose=True
+        classifier_margin=0.02,
+        max_epochs=5_000,
+        verbose=True,
+        format_as_df=True,
+        cost_function="kde_shift",
+        lr=3e-3,
     )
     print(f"Time taken: {time.time() - start} seconds")
 
+    print(f"Average cost: {df['cost'].mean()}")
+
     # Gen recourse
-    print(df.head())
+    print(df[["a1", "a2", "a3", "a4", "cost", "prob"]].head())
     print(f"Number of indivuduals negatively classified: {np.sum(df.prob < 0.5)}")

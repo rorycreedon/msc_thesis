@@ -343,7 +343,7 @@ if __name__ == "__main__":
     # GENERATE ALTERNATIVE ACTIONS AND ORDERINGS
     beta_learner = BetaLearner(
         n_comparisons=5,
-        learn_ordering=False,
+        learn_ordering=True,
         ground_truth_beta=torch.tensor([2, 1, 7, 0.2]),
     )
     beta_learner.add_data(

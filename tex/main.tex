@@ -1,7 +1,7 @@
 %%% Document packages
 \RequirePackage{fix-cm}                                                                 % Defines a specific font class to use. Fixes bf sc T1 class issue.
-\documentclass[a4paper, 11pt, twoside]{report}                                          % Defines the type of document to compile.
-\usepackage[top=2.5cm,bottom=2.5cm,left=4cm,right=4cm]{geometry}
+\documentclass[a4paper, 11pt]{report}                                          % Defines the type of document to compile.
+\usepackage[top=2.5cm,bottom=2.5cm,left=3cm,right=3cm]{geometry}
 
 % HUGE size
 \makeatletter
@@ -77,7 +77,7 @@
 % The margins have been set using the geometry package options. I have selected the margins to be as narrow as possible to comply with the guidelines, but this can be changed.
 
 %%% Bibliography packages
-\usepackage[style=authoryear,sorting=nyt,url=true,arxiv=abs,nohashothers=false, backend=biber, natbib=true, backref=true, dashed=false, isbn=false, eprint=false, date=year]{biblatex} % Controls the bibliography style and sorting.
+\usepackage[style=authoryear,sorting=nyt,url=true,arxiv=abs,nohashothers=false, backend=biber, natbib=true, backref=true, dashed=false, isbn=false, eprint=false, date=year, maxcitenames=2]{biblatex} % Controls the bibliography style and sorting.
 
 % Add line between references
 \setlength\bibitemsep{\baselineskip}
@@ -108,7 +108,8 @@
 \newcommand{\tabref}[1]{Table\ \ref{#1}}                                                % Creates a reference to a section as Table [].
 
 %%% Math packages
-\usepackage{amsmath, amssymb}                                                           % Defines tools required for math mode.
+\usepackage{amsmath, amssymb, amsthm}                                                           % Defines tools required for math mode.
+\usepackage{bbm}
 \usepackage{amsfonts}                                                                   % Defines extended font set for math mode.
 %\usepackage{bm}                                                                        % Makes math symbols bold in math mode.
 \usepackage{eucal}                                                                      % Allows for mathcal typesetting. 
@@ -147,10 +148,13 @@
 %\usepackage{multicolumn}                                                               % Allows multiple columns to be combined in a table.
 \usepackage{tabularx}                                                                   % Creates tables that can use the alignment as is needed.
 \usepackage{booktabs}                                                                   % Creates better quality tables.
-\usepackage{comment}
+
+\usepackage{mathtools}
 
 %%% Document development
-\usepackage[colorinlistoftodos]{todonotes}                                              % used to annotate the documents and make notes about what needs doing and what doesn't.
+\usepackage[color=blue!40, textwidth=25mm]{todonotes}   
+                                           % used to annotate the documents and make notes about what needs doing and what doesn't.
+\newcommand{\comment}[1]{\todo[size=\tiny]{#1}}
 
 %%% Replacement fields
 % Note - make sure that you use the space command `\ ` between each word here. newcommand treats spaces in the definitions as terminations.
@@ -159,7 +163,7 @@
 \newcommand{\secondarySupervisor}{\textbf{Matthew Caldwell}}                       % Replace the \textbf command and its contents with the name of your secondary supervisor.
 \newcommand{\examiningCommittee}{\textbf{EXAMINING COMMITTEE}}                         % Replace the \textbf command and its contents with the name of the examining comittee.
 \newcommand{\wordCount}{\textbf{WORD COUNT}}                                           % Replace the \textbf command and its contents with the word count.
-\newcommand{\submissionDate}{\textbf{\today}}                                 % Replace the \textbf command and its contents with the submission date.
+\newcommand{\submissionDate}{\textbf{11\textsuperscript{th} September 2023}}                                 % Replace the \textbf command and its contents with the submission date.
 \newcommand{\thesisTitle}{\textbf{Learning from Revealed Algorithmic Recourse Preferences}}                                      % Replace the \textbf command and its contents with the title of your thesis.
 \newcommand{\department}{\textbf{Department of Computer Science}}                                        % Replace the \textbf command and its contents with the name of your department.
 \newcommand{\signatureFile}{example-image-a}                                            % Replace the \textbf command and its contents with the directory of the image of your signature.
@@ -167,6 +171,8 @@
 % Argmin and argmax
 \DeclareMathOperator*{\argmin}{argmin}
 \DeclareMathOperator*{\argmax}{argmax}
+\DeclareMathOperator*{\argsort}{\texttt{argsort}}
+\DeclareMathOperator*{\softsort}{\texttt{SoftSort}}
 
 % Section level equation numbering
 \numberwithin{equation}{section}
@@ -191,19 +197,23 @@
 }
 \clearpage
 
-% 1 Introduction
+% Introduction
 \include{./sections/introduction.tex}
 
-% 2 Literature Review
+% Literature Review
 \include{./sections/literature_review.tex}
 
-% 3 Cost Learning
+% Causal Algo Recourse
+\include{./sections/causal_recourse.tex}
+
+
+% Cost Learning
 \include{./sections/cost_learning.tex}
 
-% 4 Experiments
+% Experiments
 \include{./sections/experiments.tex}
 
-% -1 References
+% References
 \printbibliography[title={References}, heading=bibintoc]
 
 \end{document}

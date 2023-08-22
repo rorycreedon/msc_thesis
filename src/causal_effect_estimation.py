@@ -1,5 +1,3 @@
-import collections
-
 import numpy as np
 from dowhy import CausalModel
 from typing import List
@@ -50,4 +48,4 @@ def causal_effect_estimation(
         # Print the causal effect
         causal_effects[i, j] = causal_estimate.value
 
-    print(causal_effects.T)
+    return causal_effects

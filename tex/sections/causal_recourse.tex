@@ -1,0 +1,263 @@
+\chapter{Causal Algorithmic Recourse}
+
+As discussed in section \ref{chapter:lit_review}, the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ in the strategic classification literature is typically a quadratic cost function of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$\comment{Add citations}, or occasionally a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.
+
+However, these do not necessarily represent the true complexities of the cost of moving from $\mathbf{x}$ to $\mathbf{x}'$, for a number of (non-exhaustive) reasons. Consider the case of an individual applying for a line of credit.
+
+\begin{enumerate}
+	\item \textbf{Changing one feature can change the cost of changing another feature}. If an individual decides not to inquire about a loan for a number of months (which will change the feature ``number of inquiries in the last 6 months'', the cost of decreasing the feature ``number of inquiries in the last 6 months, excluding the last 7 days'' will be very low or zero. However, if a quadratic cost function (or any $L_p$ norm cost function) is used, this will be interpreted as two separate feature changes and the costs of each will be summed. Whilst this simple case can likely be handled by domain expertise, more complex causal relations will exist. Consider an individual obtaining two more credit cards. Whilst this may reduce the cost of increasing ``number of credit cards'', this may also increase the cost of ``monthly credit card payments'' and may have less clear effects (which need not be linear) on other features.
+	
+	\item \textbf{Changing feature costs can be different for different individuals}. For example, increasing the number of credit cards from 1 to 5 may be much easier for someone with a higher income or increasing income from £25,000 to £30,000 may be much easier for someone with a higher level of education. These are all modelled as the same in typical cost functions used in the literature. \comment{To address through clustering, or add in note saying that this is out of scope.}
+\end{enumerate}
+
+\section{Structural Causal Models}
+
+To address the first issue, that changing one feature can change the cost of changing another feature, we must model the effect of changing the feature $\mathbf{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\mathbf{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as M $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}.
+
+We can illustrate a simple SCM with a four variable SCM $\mathcal{M}$ with $\mathbb{U} = \{x_1\}$, $\mathbb{V} = \{x_2, y\}$ and structural equations $\mathbb{F}$ are defined in equation \ref{eq:toy_structural_equations}, where $\sigma$ is the sigmoid function. 
+
+\begin{align} \label{eq:toy_structural_equations}
+	x_1 & = u_1; \;\;\;\; u_1 \sim N(30,000 , 5,000) \\ \nonumber
+	x_2 & = u_2 + 0.5x_1; \;\;\;\; u_2 \sim N(20,000, 10,000) \\ \nonumber
+	y & = \sigma \bigg(\frac{x_1 + x_2 - 60,000}{10,000} \bigg) \nonumber
+\end{align}
+
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=0.6\linewidth]{images/draw.io/Simple SCM.png}
+	\caption{Causal graph $\mathcal{G}$ of SCM $\mathcal{M}$.}
+	\label{fig:toy_scm}
+\end{figure}
+
+
+The SCM can also be presented with a causal graph $\mathcal{G}$, which is shown in Figure \ref{fig:toy_scm}. Let $x_1$ represent salary, $x_2$ represent savings and $y$ represent the probability of individual being approved for a mortgage. If an individual for whom the SCM $\mathcal{M}$ holds receives an increase in salary, this will lead to an increase in savings, and both the increase in savings and income will increase the probability of mortgage approval. If the individual's initial features were [£30,000, £25,000]$^T$ and their salary increases to £35,000, then it should then be easier to increase their savings than when their salary was £30,000. This toy example shows how the SCM $\mathcal{M}$ encodes the downstream effect of increased salary on both savings and probability of mortgage approval.
+
+We can use the Abduction-Action-Prediction steps \citep{pearl2016causal} to obtain a \textit{structural counterfactual} of an increase in salary ($x_1$) from £30,000 to £35,000, given that the existing features are [£30,000, £25,000, 0.27]$^T$
+
+\textbf{1. Abduction}. Calculate the value of exogenous variables before intervention, given the evidence (the current values of the features).
+
+\begin{align}
+	u_1 & = x_1 = 30,000 \\ \nonumber
+	u_2 & = x_2 - 0.5x_1 = 25,000 - 0.5(30,00) = 10,000 \\ \nonumber
+	u_3 & = 0
+\end{align}
+
+\textbf{2. Action}. Modify the model $\mathcal{M}$ by implementing the intervention on $x_1$ (i.e\., $do(x_1=35,000)$). This leads to a new SCM $M_1$ where all incoming edges to the intervened upon variable $x_1$ are severed and the value of the intervened upon variable $x_1$ is set to the intervention value £35,000. In this case, there are no incoming edges to $x_1$, so $\mathcal{M} = \mathcal{M}_1$.
+
+\begin{align}
+	x_1 & = 35,000 \\ \nonumber
+	x_2 & = u_2 - 0.5x_1 \\ \nonumber
+	x_3 & = \sigma \bigg(\frac{x_1 + x_2 - 60,000}{10,000} \bigg) \nonumber
+\end{align}
+
+\textbf{3. Prediction}. Using the updated model $\mathcal{M}_1$ and values of exogenous variables $\mathbf{u}$, calculate the values of the endogenous variables.
+
+\begin{align}
+	x^{\text{SCF}}_1 & = 35,000 \\ \nonumber
+	x^{\text{SCF}}_2 & = 0.5x^{\text{SCF}}_1 + u_2 = 0.5(35,000) + 10,000 = 27,500 \\ \nonumber
+	y^{\text{SCF}} & = \sigma \bigg(\frac{x^{\text{SCF}}_1 + x^{\text{SCF}}_2 - 60,000}{10,000} \bigg) = \sigma \bigg(\frac{35,000 + 27,500 - 60,000}{10,000} \bigg) = 0.56 \nonumber
+\end{align}
+
+Mathematically, we can denote the Action-Abduction-Prediction steps as shown in equation \ref{eq:hard_intervention}, where $I$ is the set of indices of intervened on variables, $\delta_i$ is the action on variable $i$, $f_i \in \mathbb{F}$ is structural equation of the variable $i$,  $\text{pa}_i$ are the parents of variable $i$ and $[\texttt{condition}]$ is 1 if the condition is true and 0 is it is not. \comment{Introduce $\delta_i$ notation}
+
+\begin{align} \label{eq:hard_intervention}
+	x^{\text{SCF}}_i = & [i \in I] (x_i + \delta_i) \\ \nonumber
+	& + [i \notin I] \bigg(x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)\bigg)
+\end{align}
+
+
+To calculate recourse $\mathbf{x}^*$ with an SCM over all the features within $\mathbf{x}$, we need to re-formulate the original algorithmic recourse optimisation problem presented in equation \ref{eq:recourse_setup}. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we replace the minimising the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ with minimising the cost of \textit{interventions} $A = \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D}$ where $D$ is the number of features.\comment{To consider whether better to use $a_i$ notation instead of $x_i + \delta_i$} The updated recourse problem is shown in equation \ref{eq:causal_recourse_problem_hard}.
+
+\begin{align} \label{eq:causal_recourse_problem_hard}
+	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
+	\text{s.t. } & h(\mathbf{x}^{\text{SCF}}) = 1, \\ \nonumber
+	& \mathbf{x}^{\text{SCF}}_i = [i \in I] (\mathbf{x}_i + \boldsymbol{\delta}_i) + [i \notin I] \bigg(x_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i)\bigg), \\ \nonumber
+	& A \in \mathcal{F}
+\end{align}
+
+We define the cost of interventions $A$ on original features $\mathbf{x}$ as the sum of the cost of the individual actions. The cost of each individual action is left to be flexible, and can represent a variety of cost functions, such as the $\ell_p$-norm of $\boldsymbol{\delta}_i$ or a percentile shift based cost function such as that used by \textcite{ustunActionableRecourseLinear2019}.
+
+\begin{equation}
+	\texttt{cost}(\mathbf{x}, A) = \sum_{i=1}^{D} c \bigg(\text{do}(\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i) \bigg)
+\end{equation}
+
+This formulation relies on two key assumptions.
+
+\textbf{Assumption 1}. The interventions are structural (hard) interventions, where after intervening on a variable, all incoming edges to its corresponding node in the causal graph are severed. If an individual were to intervene on savings ($x_2$) (perhaps by selling their car or borrowing from family), then we assume that they then stop saving a proportion of their income (severing the edge between $x_1$ and $x_2$).
+
+\textbf{Assumption 2}. Interventions on multiple variables are carried out simultaneously. Given an intervention A = [£32,000, £27,500]$^T$, it is assumed that salary as increased at the same time as savings, as opposed to taking place sequentially.
+
+\subsection{Soft (Parametric) Interventions}
+
+In many cases where recourse is provided, such as credit scoring, it is unlikely that intervening on a variable leads to all incoming edges to its corresponding node in the causal graph being severed - a violation of assumption 1. Intervening on savings is unlikely to lead to an individual stopping saving their salary. Likewise, intervening on body fat levels through liposuction does not lead to diet having no causal effect on body fat levels. \comment{Explain when hard interventions are used - i.e., RCTs/experiments}
+
+In these cases, we can then represent the interventions as soft (or parametric) interventions, which do not result in severing of incoming edges \citep{eberhardtInterventionsCausalInference2007}. We can represent the resulting value of $x^{\text{SCF}}$ in equation \ref{eq:soft_interventions}. Compared to hard (structural) interventions in equation \ref{eq:hard_intervention}, the formula for $x_i^{\text{SCF}}$ is the same for variables that are not intervened upon, and the effects of incoming edges are present for intervened upon variables through $f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)$.
+
+\begin{equation} \label{eq:soft_interventions}
+	x^{\text{SCF}}_i = [i \in I] \delta_i + \bigg( x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i) \bigg)
+\end{equation}
+
+As the majority of interventions which take place in the context of algorithmic recourse, such as increasing savings and re-taking an test such as the GMAT/GRE (in the case of recourse for postgraduate admissions) do not tend to result in the severing of incoming edges such as the proportion of income saved and the effect of additional revision on test scores, soft interventions are implemented in this thesis. Using soft interventions results in an updated causal recourse problem shown below in equation \ref{eq:causal_recourse_problem_soft}.
+
+\begin{align} \label{eq:causal_recourse_problem_soft}
+	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
+	\text{s.t. } & h(\mathbf{x}^{\text{SCF}}) = 1, \\ \nonumber
+	& 	\mathbf{x}^{\text{SCF}} = [i \in I] \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i) \bigg), \\ \nonumber
+	& A \in \mathcal{F}
+\end{align} 
+
+
+\subsection{Sequential Interventions}
+
+The second assumption of the causal recourse problem formulation in \ref{eq:hard_intervention} is that all interventions occur simultaneously. Picture a scenario where an individual is rejected from a PhD program, and the recourse interventions are to gain more research experience (potentially through a pre-doctoral fellowship or research assistant position) and obtain a more favourable letter of recommendation. In the real world, it is likely that these actions will be carried out sequentially, where research experience is obtained first and the letter of recommendation is second (as the professor for whom the applicant is conducting their research under will likely be the author of the letter of recommendation), as opposed to occurring simultaneously.
+
+Using equation \ref{eq:soft_interventions}, the order of the intervention does not affect the counterfactual values\comment{Potentially worth showing how $f_i(\text{pa}^{\text{SCF}}_i)$ in one intervention is cancelled out by $f_i(\text{pa}_i)$ in the next intervention} $x^{\text{SCF}}_i$, but can affect the cost of actions $A$.
+
+
+\textbf{Proposition 1}. In a sequential intervention setting with $n$ separate interventions where $x_i$ and $x_j$ are intervened upon, if the cost of individual interventions $c(\text{do}(x_i:=x_i + \delta_i))$ depends on the value of $x_i$ and $x_i$ is a descendent of $x_j$, then the ordering of the sequential interventions affects the total cost of the $n$ sequential interventions.
+
+\begin{proof}
+	The values of $x_i$ after an intervention on $x_i$ and intervening on $x_j$ are shown below.
+	\begin{align} \label{eq:proposition_1_equation}
+		x^{\text{SCF}_i}_i & = x_i + \delta_i \\ \label{eq:proposition_1_equation2}
+		x^{\text{SCF}_j}_i & = x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)
+	\end{align}
+	As the cost of individual interventions depends on the value of $x_i$ before intervention, the cost of intervening on $x_i$ first depends on the value $x_i$ whereas the cost of intervening on $x_i$ second depends on the value $x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)$ (the value after intervening on $x_j$, seen in equation \ref{eq:proposition_1_equation2}). This results in different costs for the intervention on $x_i$ for the different orderings.
+	
+	As $x_j$ is a descendant of $x_i$, the intervention on $x_i$ has no effect on $x^{\text{SCF}_i}_j$ and both intervening on $x_j$ first or second leads to the same cost for the intervention on $x_j$.
+	
+	As the total cost is the sum of the costs of each intervention and the costs for the interventions on $x_i$ are different for each ordering and the intervention on $x_j$ are the same for each ordering, then the total cost for the two orderings of sequential interventions are different. \comment{Make this more maths-y and potentially add a worked example}
+\end{proof}
+
+To take into account the potential effects of different orderings on the costs, we denote interventions as an ordered set $A = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$ where $\mathbf{S}$ is a permutation of the set $\{1, \ldots, D\}^N$ and represents the ordering of the intervention.\comment{To replace $o_i$ with a permutation set?} Given this updated definition of $A$, the causal recourse formulation stays the same as shown in \ref{eq:causal_recourse_problem_soft}.
+
+\section{Differentiable Sorting}
+
+In order to solve equation \ref{eq:causal_recourse_problem_soft} with sequential interventions, we need to optimise for an ordering of interventions.\comment{Is this NP-hard?} With $D$ features, there are $D!$ different orderings (i.e. permutations of the set $\{1, \ldots, D\}$) and equation \ref{eq:causal_recourse_problem_soft} becomes a combinatorial optimisation problem.\comment{I think this is true, to check}
+
+In order to transform the combinatorial optimisation problem to a continuous optimisation problem, we can first define a vector $O\in \mathbb{R}^{D}$, which can be optimised using continuous heuristics such as gradient descent. From $O$, we can recover $S$ through the transformation $S = \argsort(O)$.\comment{Not sure if this para is clear enough - trying to say we make a vector $O$ from which we can reconstruct the ordering $S$. The vector $O \in \mathbb{R}^D$ can be optimised by gradient descent, so we optimise $O$ and therefore indirectly optimise the ordering $S$}
+
+However, the operation $\argsort$ is not differentiable.\comment{Is it worth explaining this or just take as given?} As a solution, we replace the $\argsort$ operator with the $\softsort$ operator, a continuous relaxation of the $\argsort$ operator \citep{prilloSoftSortContinuousRelaxation2020}.
+
+For a given permutation (i.e., ordering) $\pi \in \{1, \ldots, D\}^D$, we can also express the permutation $\pi$ as a permutation matrix $P_{\pi} \in \{0,1\}^{D \times D}$. We can represent $P_{\pi}$ mathematically as a square matrix with values as shown in equation \ref{eq:permutation_matrix_def}. For example, the permutation matrix of the permutation $\pi = [3, 1, 2]^T$ is shown in equation \ref{eq:permutation_matrix_example}. 
+
+\begin{equation} \label{eq:permutation_matrix_def}
+	P_{\pi}[i,j] = \begin{cases}
+		1 & \text{ if } j = \pi_i \\
+		0 & \text{ otherwise}
+	\end{cases}
+\end{equation}
+
+\begin{align} \label{eq:permutation_matrix_example}
+	\pi = [3, 1, 2]^T \Longrightarrow	P_{\pi} = 
+	\left[\begin{array}{lllll}
+		0 & 0 & 1 \\
+		1 & 0 & 0 \\
+		0 & 1 & 0
+	\end{array}\right]
+\end{align}
+
+$\softsort$ defines a continuous relaxation for $P_{\argsort(O)}$, defined in equation \ref{eq:softsort_def}, where $d$ is a differentiable (almost everywhere) semi-metric function and $\tau >0$ is a temperature parameter that controls the degree of approximation. For the experiments in this thesis, $d(x,y) = |x-y|$ has been used.
+
+\begin{equation} \label{eq:softsort_def}
+	\texttt{SoftSort}^d_{\tau}(O) = \texttt{softmax}\bigg( \frac{-d(\texttt{sort}(O)\mathbbm{1}^T, \mathbbm{1}O^T)}{\tau} \bigg)
+\end{equation}
+
+The value of the semi-metric function $d$ is larger when $\texttt{sort}(O)[i]$ is close to $O[j]$ and smaller when $\texttt{sort}(O)[i]$ is far from $O[j]$. The $\texttt{softmax}$ function is applied row-wise, meaning that the larger the value of semi-metric function $d$ compared to other values, the larger the value of $\texttt{SoftSort}[i,j]$. A larger temperature parameter $\tau>0$ leads to the values of $d$ moving closer together and, after the $\texttt{softmax}$, the values of $\texttt{SoftSort}[i,j]$ become more evenly distributed, compared to the true $P_{\argsort(O)}$, which is binary (i.e., very unevenly distributed). Therefore, the larger the value of $\tau$, the more approximate $\softsort$ becomes. As $\tau \to 0$, $\softsort^d_{\tau}(O) \to P_{\argsort(O)}$.
+
+A visual representation can be seen below of $P_{\argsort(O)}$ and $\texttt{SoftSort}^{|\cdot|}_{1}(O)$ can be seen below for $O = [2,5,4]^T$.
+
+\begin{equation}
+	O = \begin{bmatrix}
+		2 \\
+		5 \\
+		4
+	\end{bmatrix}
+	\Longrightarrow
+	P_{\argsort(O)} =
+	\begin{bmatrix}
+		0 & 1 & 0 \\
+		0 & 0 & 1 \\
+		1 & 0 & 0 \\
+	\end{bmatrix}
+\end{equation}
+
+\begin{equation} \label{eq:softsort_example}
+	\texttt{SoftSort}^{|\cdot|}_{1}(O) = 
+	\texttt{softmax} \Bigg(-\begin{bmatrix}
+		|5-2| & |5-5| & |5-4| \\
+		|4-2| & |4-5| & |4-4| \\
+		|2-2| & |2-5| & |2-4|
+	\end{bmatrix} \Bigg)	
+	=
+	\begin{bmatrix}
+		0.04 & \textbf{0.70} & 0.26 \\
+		0.09 & 0.24 & \textbf{0.67} \\
+		\textbf{0.85} & 0.04 & 0.11
+	\end{bmatrix}
+\end{equation}
+
+As $\softsort$ is the combination of the $\texttt{softmax}$ function (which is differentiable), the semi-metric $d$ (which is differentiable almost everywhere) and the $\texttt{sort}$ function (which is differentiable almost everywhere), this leads to $\softsort$ being differentiable (almost everywhere).
+
+The values of the matrix that $\softsort$ produces, such as in equation \ref{eq:softsort_example}, can be interpreted \textit{loosely} as the probability that the $i^{\text{th}}$ element of $\pi_{\argsort(O)}$ is $j$.
+
+When incorporating $\softsort$ into the the causal recourse problem defined in equation \ref{eq:causal_recourse_problem_soft}, we take the maximum `probability' in each row as the ordering $S$, as opposed to weighting the costs of differing orderings by their `probabilities'.\comment{To work out if and why this is correct - was previously having a problem were converged to O was [0.25, 0.25, 0.25, 0.25] - although potentially because in a setting where ordering didn't matter}
+
+
+=========================================
+
+
+We denote the interventions as a set $\mathcal{A} = \{(a_1, o_1), (a_2, o_2), \ldots, (a_D, o_D)\}$ where $(a_i, o_i)$ represents that the $o_i$\textsuperscript{th} intervention will be an intervention of $a_i$ on $\mathbf{x}'_i$, the current value of feature $i$ after any previous interventions. The intervention may have downstream effects on other features, as described by the causal graph.
+
+
+The causal graph can be expressed as a weighted adjacency matrix $W$, where $W_{ij}$ is the marginal effect on $\mathbf{x}_j$ of intervening on $\mathbf{x}_i$. Different orderings can result in different values of $\mathbf{x}'$.
+
+Using the same causal graph in Figure \ref{fig:toy_scm} and weighted adjacency $W$ 
+
+The cost of the interventions $\mathcal{A}$ is therefore the sum of a cost function over each individual intervention $a_i$ (for example $c(a_i) = a_i^2$). The cost of the intervention can be expressed as follows, where $D$ is the number of features. 
+
+\begin{equation}
+	c(\mathcal{A}) = \sum_{i=1}^D c(\mathbf{a}_i)
+\end{equation}
+
+The post-intervention features $\mathbf{a}^*$ can be calculated as shown in Algorithm \ref{algo:causal_cost_function}.
+
+\begin{algorithm}
+	\caption{Intervention Evaluation Function}
+	\begin{algorithmic}[1]
+		\Function{EvalInterventions}{$\mathbf{a}, \mathbf{x}, \mathbf{o}, W$}
+		\State \textbf{Input:} size of actions for each feature $\mathbf{a}$, original features $\mathbf{x}$, order of actions $\mathbf{o}$, adjacency matrix $W$
+		\State \textbf{Output:} new features $\textbf{x}^*$
+		\State $\textbf{x}^* \leftarrow \textbf{x}$
+		\State $W \leftarrow W + I$ \Comment{where $I$ is the identity matrix}
+		\State $\mathbf{s} \leftarrow \texttt{argsort}(\mathbf{o})$
+		\For{$i$ in $\mathbf{s}$}\Comment{Loop through each feature in order of action}
+		\State $\textbf{x}^* \leftarrow \textbf{x}^* + \mathbf{a}_i \times W[:,i]^{T}$ \Comment{Update for downstream effects}
+		\EndFor
+		\State \Return $\mathbf{x}^*$
+		\EndFunction
+	\end{algorithmic}
+	\label{algo:causal_cost_function}
+\end{algorithm}
+
+\section{Generating recourse}
+
+Using the new formulation of the cost function as the cost of interventions, we can also re-write the recourse generation problem, given a classifier $h$, original features $x$ and weighted adjacency matrix $W$. We denote the intervention evaluation as described in Algorithm \ref{algo:causal_cost_function} as \texttt{eval}. For negatively classified individuals, the task of recourse involves solving equation \ref{eq:recourse_gen_interventions}, where we minimise the cost of intervention subject to the new features $\mathbf{x}'$ leading to a positive classification (which corresponds to a classification score of greater than 0.5).
+
+\begin{align} \label{eq:recourse_gen_interventions}
+	\mathbf{a}', \mathbf{o}' = & \argmin_{\mathbf{a, o}} \sum_{i=1}^D c(\mathbf{a}_i) \\ \nonumber
+	& \text{ s.t. } h(\texttt{eval}(\mathbf{a, x, o}, W)) \geq 0.5
+\end{align}
+
+As \texttt{eval} is a non-convex function, we cannot solve this constrained optimisation problem using convex optimisation. Instead, is converted into a unconstrained problem using Lagrange multipliers as shown in equation \ref{eq:lagrange_formulation}. This is solved using gradient descent, where at each iteration, a step is first taken to maximise $\lambda$ and then a step is then taken to minimise $\mathbf{a}$ and $\mathbf{o}$.
+
+\begin{equation} \label{eq:lagrange_formulation}
+	\min_{\mathbf{a, o}} \max_\lambda \sum_{i=1}^D c(\mathbf{a}_i) - \lambda (h(\texttt{eval}(\mathbf{a, x, o}, W))-0.5)
+\end{equation}
+
+This expression is possible to optimise using gradient descent when only optimising for $\mathbf{a}$, the function \texttt{eval} contains the line $S \leftarrow \texttt{argsort}(\mathbf{o})$, which is non-differentiable. Therefore, when optimising for the ordering $\mathbf{o}$, we must find an alternative to the $\argsort$ operator.
+
+\subsection{Differentiable sorting}
+
+The key point to make in this section is that technically, as long as a function is differentiable and maps from $f: \mathbb{R}^D \rightarrow \texttt{ordering}^D$, we should be able to take derivatives of $f$ and use gradient descent to find the value of the input to $f$ which minimises the objective defined in equation \ref{eq:lagrange_formulation}. The smoother the function is in its mapping from a vector of real numbers to the ordering (i.e., vectors close to each other map to similar orderings), the fewer local minima it should have, making optimisation easier.

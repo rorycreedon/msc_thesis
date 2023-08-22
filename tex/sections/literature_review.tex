@@ -10,9 +10,10 @@ Description of what algorithmic recourse is and why it is important - use of aut
 \begin{itemize}
 	\item Description of the original set-up and problem - i.e., 	
 	\begin{align} \label{eq:recourse_setup}
-		\mathbf{x}^f = & \argmin_{\mathbf{x}' \in \mathbf{\mathcal{X}}} c(\mathbf{x},\mathbf{x}') \\
-		\text{s.t. } & h(\mathbf{x}') = 1, \nonumber \\ 
-		& c(\mathbf{x},\mathbf{x}') \leq B \nonumber
+		\boldsymbol{\delta}^* = & \argmin_{\boldsymbol{\delta}} c(\mathbf{x}, \boldsymbol{\delta}) \\ \nonumber
+		\text{s.t. } & h(\mathbf{x}') = 1, \\ \nonumber
+		& \mathbf{x}' = \mathbf{x} + \boldsymbol{\delta}, \\ \nonumber
+		& \boldsymbol{\delta} \in \mathcal{F}
 	\end{align} 
 	
 	\item Description of the causal recourse set-up and problem \citep{karimiAlgorithmicRecourseCounterfactual2021}
