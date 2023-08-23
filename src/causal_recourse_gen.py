@@ -6,6 +6,7 @@ import pandas as pd
 import time
 from typing import Union
 import wandb
+import argparse
 
 from kde import GaussianKDE
 
@@ -90,8 +91,8 @@ class CausalRecourseGenerator:
         # Beta
         self.beta = None
 
-        # Sorted X (for percentile shift cost function)
-        self.sorted_X = None
+        # KDE
+        self.kde = None
 
     def add_data(
         self,
@@ -149,7 +150,11 @@ class CausalRecourseGenerator:
         """
         self.sorter = SoftSort(tau=tau, hard=True, power=power, device=self.device)
 
-    def define_kde(self):
+    def define_kde(self) -> None:
+        """
+        Define the KDE
+        :return: None
+        """
         self.kde = GaussianKDE(data=self.X, device=self.device)
 
     def log_kde_shift(self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6):
@@ -390,7 +395,16 @@ class CausalRecourseGenerator:
 
 
 if __name__ == "__main__":
-    N = 100
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--N", type=int, default=100)
+    parser.add_argument("--cost_function", type=str, default="l2_norm")
+    parser.add_argument("--lr", type=float, default=1e-2)
+    parser.add_argument("--learn_ordering", type=bool, default=True)
+    parser.add_argument("--tau", type=float, default=0.1)
+    args = parser.parse_args()
+
+    N = args.N
 
     # FIXED PARAMETERS
     X = torch.rand(N, 4, dtype=torch.float64)
@@ -402,13 +416,13 @@ if __name__ == "__main__":
     beta = torch.tensor([0.5, 0.5, 0.5, 0.5], dtype=torch.float64)
 
     # GEN RECOURSE
-    recourse_gen = CausalRecourseGenerator(learn_ordering=True)
+    recourse_gen = CausalRecourseGenerator(learn_ordering=args.learn_ordering)
     recourse_gen.add_data(
         X=X, W_adjacency=W_adjacency, W_classifier=W_classifier, b_classifier=0.5
     )
     recourse_gen.set_beta(beta)
     recourse_gen.set_ordering(torch.arange(4).repeat(N, 1))
-    recourse_gen.set_sorter(tau=0.1)
+    recourse_gen.set_sorter(tau=args.tau)
 
     # start a new wandb run to track this script
     wandb.init(
@@ -416,19 +430,20 @@ if __name__ == "__main__":
         project="causal_recourse_gen",
         # track hyperparameters and run metadata
         config={
-            "N": 100,
-            "lr": 5e-3,
-            "cost_function": "kde_shift",
+            "N": args.N,
+            "lr": args.lr,
+            "cost_function": args.cost_function,
+            "learn_ordering": args.learn_ordering,
         },
     )
 
     start = time.time()
     df = recourse_gen.gen_recourse(
         classifier_margin=0.02,
-        max_epochs=4_000,
+        max_epochs=2_500,
         verbose=True,
-        cost_function="kde_shift",
-        lr=5e-3,
+        cost_function=args.cost_function,
+        lr=args.lr,
     )
     print(f"Time taken: {time.time() - start} seconds")
 

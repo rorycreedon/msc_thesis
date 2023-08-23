@@ -204,6 +204,19 @@ The values of the matrix that $\softsort$ produces, such as in equation \ref{eq:
 
 When incorporating $\softsort$ into the the causal recourse problem defined in equation \ref{eq:causal_recourse_problem_soft}, we take the maximum `probability' in each row as the ordering $S$, as opposed to weighting the costs of differing orderings by their `probabilities'.\comment{To work out if and why this is correct - was previously having a problem were converged to O was [0.25, 0.25, 0.25, 0.25] - although potentially because in a setting where ordering didn't matter}
 
+\section{Generating Recourse}
+
+To generate recourse, we need to solve the constrained optimisation problem from equation \ref{eq:causal_recourse_problem_soft}, where $A$ is the ordered set $A = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$.
+
+\begin{align}
+	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
+	\text{s.t. } & h(\mathbf{x}^{\text{SCF}}) = 1, \\ \nonumber
+	& 	\mathbf{x}^{\text{SCF}} = [i \in I] \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i) \bigg), \\ \nonumber
+	& A \in \mathcal{F}
+\end{align} 
+
+
+
 
 =========================================
 
