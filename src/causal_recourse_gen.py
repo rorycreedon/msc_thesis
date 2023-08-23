@@ -157,7 +157,7 @@ class CausalRecourseGenerator:
         """
         self.kde = GaussianKDE(data=self.X, device=self.device)
 
-    def log_kde_shift(self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6):
+    def log_kde_shift(self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-8):
         """
         Compute the KDE shift cost function
         :param X_prime: X_prime, which is being optimised
@@ -402,6 +402,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--learn_ordering", type=bool, default=True)
     parser.add_argument("--tau", type=float, default=0.1)
+    parser.add_argument("--max_epochs", type=int, default=4000)
     args = parser.parse_args()
 
     N = args.N
@@ -440,14 +441,15 @@ if __name__ == "__main__":
     start = time.time()
     df = recourse_gen.gen_recourse(
         classifier_margin=0.02,
-        max_epochs=2_500,
+        max_epochs=args.max_epochs,
         verbose=True,
         cost_function=args.cost_function,
         lr=args.lr,
     )
     print(f"Time taken: {time.time() - start} seconds")
-
     print(f"Average cost: {df['cost'].mean()}")
+
+    wandb.log({"neg_classified": np.mean(df.prob < 0.5)})
 
     # Gen recourse
     print(df[["a1", "a2", "a3", "a4", "cost", "prob"]].head())
