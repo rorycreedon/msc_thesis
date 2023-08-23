@@ -229,9 +229,10 @@ class CausalRecourseGenerator:
         """
         original_percentiles = self.kde.integrate_neg_inf(X_prime)
         new_percentiles = self.kde.integrate_neg_inf(X_prime + A)
-        return torch.abs(
-            torch.log((1 - new_percentiles + eps) / (1 - original_percentiles + eps))
-        )
+        return torch.square(original_percentiles - new_percentiles)
+        # return torch.abs(
+        #     torch.log((1 - new_percentiles + eps) / (1 - original_percentiles + eps))
+        # )
 
     def loss_differentiable(
         self, A: torch.Tensor, O: torch.Tensor, cost_function: str = "l2_norm"
@@ -388,10 +389,6 @@ class CausalRecourseGenerator:
             max_loss.backward()
             max_optimiser.step()
 
-            if epoch % 100 == 0 and verbose:
-                print(f"lambda value: {lambda1}")
-                print(f"grad on lambda: {lambda1.grad}")
-
             # Minimise wrt A, O, beta
             if self.learn_ordering:
                 X_prime, cost = self.loss_differentiable(
@@ -407,6 +404,7 @@ class CausalRecourseGenerator:
             min_loss = torch.sum(cost - (lambda1 * constraint))
 
             min_optimiser.zero_grad()
+            torch.nn.utils.clip_grad_norm_(A, 1, foreach=True)
             min_loss.backward()
             min_optimiser.step()
 
@@ -426,8 +424,6 @@ class CausalRecourseGenerator:
                 print(
                     f"Epoch {epoch}: Objective: {objective_list[-1]}, Constraint: {constraint_list[-1]}"
                 )
-                print(f"A value: {A}")
-                print(f"grad on A: {A.grad}\n")
 
         plt.plot(objective_list, color="blue", label="Objective")
         ax = plt.gca()
@@ -504,7 +500,7 @@ if __name__ == "__main__":
         verbose=True,
         format_as_df=True,
         cost_function="kde_shift",
-        lr=3e-3,
+        lr=1e-2,
     )
     print(f"Time taken: {time.time() - start} seconds")
 

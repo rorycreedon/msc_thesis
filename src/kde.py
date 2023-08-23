@@ -13,7 +13,7 @@ class GaussianKDE:
         self.device = device
         self.data = data.to(self.device)
         bandwidth = N ** (-1 / (1 + 4))  # Scott's rule
-        covariance = torch.cov(data.T)
+        covariance = torch.cov(self.data.T)
         self.stdev = torch.sqrt(bandwidth**2 * covariance.diagonal())
 
     def integrate_neg_inf(self, high: torch.Tensor):
