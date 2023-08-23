@@ -5,13 +5,9 @@ import numpy as np
 import pandas as pd
 import time
 from typing import Union
+import wandb
 
-import matplotlib.pyplot as plt
-import matplotlib
-
-from src.kde import GaussianKDE
-
-matplotlib.use("TkAgg")
+from kde import GaussianKDE
 
 
 class SoftSort(nn.Module):
@@ -153,70 +149,8 @@ class CausalRecourseGenerator:
         """
         self.sorter = SoftSort(tau=tau, hard=True, power=power, device=self.device)
 
-    def sort_X(self) -> None:
-        """
-        Sort X for percentile shift cost function
-        :return: None
-        """
-        # TODO: change this to sort over whole distribution
-        # self.sorted_X = torch.sort(self.X, dim=0)[0]
-        self.sorted_X = torch.sort(
-            torch.rand(100_000, self.X.shape[1]).to(self.device), dim=0
-        )[0]
-
-    def interpolated_percentile(
-        self, X_prime: torch.Tensor, eps: float = 1e-6
-    ) -> torch.Tensor:
-        """
-        Compute percentiles of X_prime in X (including positively classified data)
-        :param X_prime: X_prime, which is being optimised
-        :param eps: Epsilon to avoid division by zero
-        :return: The percentiles of X_prime in X
-        """
-        # Find the positions where elements of X would be inserted into t
-        pos = (self.sorted_X.unsqueeze(0) < X_prime.unsqueeze(1)).sum(dim=1)
-
-        # Handle values outside the range
-        outside_range = (pos == 0) | (pos == self.sorted_X.shape[0])
-        percentiles_outside = pos.float() / self.sorted_X.shape[0]
-
-        # Handle values inside the range using linear interpolation
-        indices_i = torch.clamp(pos - 1, 0)
-        indices_i1 = torch.clamp(pos, 0, self.sorted_X.shape[0] - 1)
-
-        v_i = torch.gather(self.sorted_X, 0, indices_i)
-        v_i1 = torch.gather(self.sorted_X, 0, indices_i1)
-
-        interpolated_pos = pos - 1 + (X - v_i) / (v_i1 - v_i)
-        percentiles_inside = interpolated_pos.float() / self.sorted_X.shape[0]
-
-        # Combine results
-        final_percentiles = torch.clamp(
-            torch.where(outside_range, percentiles_outside, percentiles_inside),
-            eps,
-            1 - eps,
-        )
-
-        return final_percentiles
-
-    def log_percentile_shift(
-        self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6
-    ) -> torch.Tensor:
-        """
-        Compute the log percentile shift cost function
-        :param X_prime: X_prime, which is being optimised
-        :param eps: Epsilon to add to percentiles to avoid log(0)
-        :return: The log percentile shift cost function
-        """
-        original_percentiles = self.interpolated_percentile(X_prime, eps)
-        new_percentiles = self.interpolated_percentile(X_prime + A, eps)
-        return torch.abs(torch.log((1 - new_percentiles) / (1 - original_percentiles)))
-
     def define_kde(self):
         self.kde = GaussianKDE(data=self.X, device=self.device)
-        # self.kde = GaussianKDE(
-        #     data=torch.rand(100_000, self.X.shape[1]), device=self.device
-        # )
 
     def log_kde_shift(self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6):
         """
@@ -228,10 +162,10 @@ class CausalRecourseGenerator:
         """
         original_percentiles = self.kde.integrate_neg_inf(X_prime)
         new_percentiles = self.kde.integrate_neg_inf(X_prime + A)
-        return torch.square(original_percentiles - new_percentiles)
-        # return torch.abs(
-        #     torch.log((1 - new_percentiles + eps) / (1 - original_percentiles + eps))
-        # )
+        # return torch.square(original_percentiles - new_percentiles)
+        return torch.square(
+            torch.log((1 - new_percentiles + eps) / (1 - original_percentiles + eps))
+        )
 
     def loss_differentiable(
         self, A: torch.Tensor, O: torch.Tensor, cost_function: str = "l2_norm"
@@ -252,10 +186,6 @@ class CausalRecourseGenerator:
             if cost_function == "kde_shift":
                 cost += torch.sum(
                     self.log_kde_shift(X_prime, A * S[:, i]) * self.beta, dim=1
-                )
-            elif cost_function == "percentile_shift":
-                cost += torch.sum(
-                    self.log_percentile_shift(X_prime, A * S[:, i]) * self.beta, dim=1
                 )
             elif cost_function == "l2_norm":
                 cost += torch.sum(A**2 * S[:, i] * self.beta, dim=1)
@@ -285,12 +215,9 @@ class CausalRecourseGenerator:
 
         if self.beta.dim() == 1:
             for i in range(self.W_adjacency.shape[0]):
-                if cost_function == "percentile_shift":
+                if cost_function == "kde_shift":
                     cost += torch.sum(
-                        self.log_percentile_shift(
-                            torch.gather(X_prime, 1, S)[:, i], A_ordered[:, i] * S[:, i]
-                        )
-                        * self.beta[S[:, i]],
+                        self.log_kde_shift(X_prime, A * (S == i)) * self.beta,
                         dim=1,
                     )
                 elif cost_function == "l2_norm":
@@ -317,6 +244,15 @@ class CausalRecourseGenerator:
             raise ValueError("Beta must be a 1D or 2D tensor")
 
         return X_prime, cost
+
+    @staticmethod
+    def clip_tensor_gradients_by_row(tensor, max_norm):
+        """Vectorized gradient clipping by row for a single tensor."""
+        if tensor.grad is not None:
+            with torch.no_grad():
+                grad_norms = tensor.grad.norm(p=2, dim=1, keepdim=True)
+                clip_coef = torch.clamp(max_norm / (grad_norms + 1e-6), max=1)
+                tensor.grad.mul_(clip_coef)
 
     def gen_recourse(
         self,
@@ -403,13 +339,22 @@ class CausalRecourseGenerator:
             min_loss = torch.sum(cost - (lambda1 * constraint))
 
             min_optimiser.zero_grad()
-            torch.nn.utils.clip_grad_norm_(A, 1, foreach=True)
+            self.clip_tensor_gradients_by_row(A, 0.5)
+            self.clip_tensor_gradients_by_row(O, 0.5)
             min_loss.backward()
             min_optimiser.step()
 
             # Track objective and constraints
             objective_list.append(cost.mean().item())
             constraint_list.append(constraint.mean().item())
+
+            # log metrics to wandb
+            wandb.log(
+                {
+                    "objective": cost.mean().item(),
+                    "constraint": constraint.mean().item(),
+                }
+            )
 
             # Early stopping
             if (
@@ -424,55 +369,28 @@ class CausalRecourseGenerator:
                     f"Epoch {epoch}: Objective: {objective_list[-1]}, Constraint: {constraint_list[-1]}"
                 )
 
-        plt.plot(objective_list, color="blue", label="Objective")
-        ax = plt.gca()
-        ax2 = ax.twinx()
-        ax2.plot(constraint_list, color="red", label="Constraint")
-        ax.set_xlabel("Epoch")
-        ax.set_ylabel("Objective")
-        ax2.set_ylabel("Constraint")
-        ax.legend(loc="upper left")
-        ax2.legend(loc="upper right")
-        plt.show()
-
-        if format_as_df:
-            # Clean for dataframe
-            X_recourse = X_prime.detach().to("cpu")
-            if self.learn_ordering:
-                action_order = torch.max(self.sorter(O), dim=2)[1].detach().to("cpu")
-            else:
-                action_order = self.fixed_ordering.to("cpu")
-            actions = A.detach().to("cpu")
-            costs = cost.detach().to("cpu")
-            probs = torch.sigmoid(constraint + classifier_margin).detach().to("cpu")
-
-            data = {f"X{i+1}": X_recourse[:, i] for i in range(self.X.shape[1])}
-            data.update({f"a{i+1}": actions[:, i] for i in range(self.X.shape[1])})
-            data.update(
-                {f"order{i+1}": action_order[:, i] for i in range(self.X.shape[1])}
-            )
-            data.update({"cost": costs, "prob": probs})
-
-            df = pd.DataFrame(data)
-
-            return df
-
+        # Clean for dataframe
+        X_recourse = X_prime.detach().to("cpu")
+        if self.learn_ordering:
+            action_order = torch.max(self.sorter(O), dim=2)[1].detach().to("cpu")
         else:
-            if self.learn_ordering:
-                action_order = torch.max(self.sorter(O), dim=1)[1].detach().to("cpu")
-            else:
-                action_order = self.fixed_ordering.to("cpu")
-            return (
-                X_prime.detach().to("cpu"),
-                action_order.detach().to("cpu"),
-                A.detach().to("cpu"),
-                cost.detach().to("cpu"),
-                torch.sigmoid(constraint + classifier_margin).detach().to("cpu"),
-            )
+            action_order = self.fixed_ordering.to("cpu")
+        actions = A.detach().to("cpu")
+        costs = cost.detach().to("cpu")
+        probs = torch.sigmoid(constraint + classifier_margin).detach().to("cpu")
+
+        data = {f"X{i+1}": X_recourse[:, i] for i in range(self.X.shape[1])}
+        data.update({f"a{i+1}": actions[:, i] for i in range(self.X.shape[1])})
+        data.update({f"order{i+1}": action_order[:, i] for i in range(self.X.shape[1])})
+        data.update({"cost": costs, "prob": probs})
+
+        df = pd.DataFrame(data)
+
+        return df
 
 
 if __name__ == "__main__":
-    N = 10
+    N = 100
 
     # FIXED PARAMETERS
     X = torch.rand(N, 4, dtype=torch.float64)
@@ -492,12 +410,23 @@ if __name__ == "__main__":
     recourse_gen.set_ordering(torch.arange(4).repeat(N, 1))
     recourse_gen.set_sorter(tau=0.1)
 
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="causal_recourse_gen",
+        # track hyperparameters and run metadata
+        config={
+            "N": 100,
+            "lr": 5e-3,
+            "cost_function": "kde_shift",
+        },
+    )
+
     start = time.time()
     df = recourse_gen.gen_recourse(
         classifier_margin=0.02,
         max_epochs=4_000,
         verbose=True,
-        format_as_df=True,
         cost_function="kde_shift",
         lr=5e-3,
     )
