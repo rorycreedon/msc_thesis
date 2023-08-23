@@ -40,6 +40,14 @@ class GaussianKDE:
 
         return torch.mean(torch.special.ndtr(normalised_high), dim=0)
 
+        # results = []
+        # for high_row in high:
+        #     normalised_high = (high_row - self.data) / self.stdev
+        #     value = torch.mean(torch.special.ndtr(normalised_high), dim=0)
+        #     results.append(value)
+        #
+        # return torch.stack(results)
+
 
 if __name__ == "__main__":
     # gen data
@@ -50,5 +58,5 @@ if __name__ == "__main__":
 
     # fit KDE
     kde = GaussianKDE(data)
-    highs = torch.tensor([[0, 0.2, 0.4, 0.6, 0.8], [0, -0.2, -0.4, -0.6, -0.8]])
+    highs = torch.rand(500, 5)
     print(kde.integrate_neg_inf(highs))

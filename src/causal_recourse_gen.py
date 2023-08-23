@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import time
 from typing import Union
-from scipy.stats import gaussian_kde
 
 import matplotlib.pyplot as plt
 import matplotlib
@@ -214,10 +213,10 @@ class CausalRecourseGenerator:
         return torch.abs(torch.log((1 - new_percentiles) / (1 - original_percentiles)))
 
     def define_kde(self):
-        # self.kde = GaussianKDE(data=self.X), deivce=self.device)
-        self.kde = GaussianKDE(
-            data=torch.rand(100_000, self.X.shape[1]), device=self.device
-        )
+        self.kde = GaussianKDE(data=self.X, device=self.device)
+        # self.kde = GaussianKDE(
+        #     data=torch.rand(100_000, self.X.shape[1]), device=self.device
+        # )
 
     def log_kde_shift(self, X_prime: torch.Tensor, A: torch.tensor, eps: float = 1e-6):
         """
@@ -473,7 +472,7 @@ class CausalRecourseGenerator:
 
 
 if __name__ == "__main__":
-    N = 1
+    N = 10
 
     # FIXED PARAMETERS
     X = torch.rand(N, 4, dtype=torch.float64)
@@ -496,11 +495,11 @@ if __name__ == "__main__":
     start = time.time()
     df = recourse_gen.gen_recourse(
         classifier_margin=0.02,
-        max_epochs=5_000,
+        max_epochs=4_000,
         verbose=True,
         format_as_df=True,
         cost_function="kde_shift",
-        lr=1e-2,
+        lr=5e-3,
     )
     print(f"Time taken: {time.time() - start} seconds")
 
