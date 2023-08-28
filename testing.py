@@ -1,6 +1,6 @@
 from scipy.stats import norm
 
-from src.scm import StructuralCausalModel
+from structural_models.scm import StructuralCausalModel
 from src.structure_learning import dagma_linear, process_df, plot_graph
 from src.causal_effect_estimation import causal_effect_estimation
 

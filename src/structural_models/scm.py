@@ -154,6 +154,26 @@ class StructuralCausalModel:
         self.data = self.data.reindex(sorted(self.data.columns), axis=1)
         return self.data
 
+    def generate_adjacency_matrix(self, variables: list):
+        """
+        Generate the weighted adjacency matrix from the relationships for the variables in the list.
+        :param variables: list of variables
+        :return: adjacency matrix
+        """
+        # Initialize adjacency matrix
+        A = np.zeros((len(variables), len(variables)))
+
+        # Loop through variables
+        for i, var in enumerate(variables):
+            # Loop through relationships
+            for j, rel in enumerate(variables):
+                # If there is a relationship, add it to the adjacency matrix
+                if var in self.relationships.keys():
+                    if rel in self.relationships[var].keys():
+                        A[j, i] = self.relationships[var][rel]
+
+        return A
+
     def copy(self):
         """
         Return a copy of the model.

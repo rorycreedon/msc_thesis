@@ -1,6 +1,6 @@
-\chapter{Causal Algorithmic Recourse}
+\chapter{Causal Algorithmic Recourse} \label{chapter:causal_recourse}
 
-As discussed in section \ref{chapter:lit_review}, the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ in the strategic classification literature is typically a quadratic cost function of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$\comment{Add citations}, or occasionally a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.
+As discussed in section \ref{chapter:lit_review}, the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ in the strategic classification literature is typically a quadratic cost function of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$\comment{Add citations}, or occasionally an quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.
 
 However, these do not necessarily represent the true complexities of the cost of moving from $\mathbf{x}$ to $\mathbf{x}'$, for a number of (non-exhaustive) reasons. Consider the case of an individual applying for a line of credit.
 
@@ -12,14 +12,14 @@ However, these do not necessarily represent the true complexities of the cost of
 
 \section{Structural Causal Models}
 
-To address the first issue, that changing one feature can change the cost of changing another feature, we must model the effect of changing the feature $\mathbf{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\mathbf{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as M $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}.
+To address the first issue, that changing one feature can change the cost of changing another feature, we must model the effect of changing the feature $\mathbf{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\mathbf{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}.
 
 We can illustrate a simple SCM with a four variable SCM $\mathcal{M}$ with $\mathbb{U} = \{x_1\}$, $\mathbb{V} = \{x_2, y\}$ and structural equations $\mathbb{F}$ are defined in equation \ref{eq:toy_structural_equations}, where $\sigma$ is the sigmoid function. 
 
 \begin{align} \label{eq:toy_structural_equations}
-	x_1 & = u_1; \;\;\;\; u_1 \sim N(30,000 , 5,000) \\ \nonumber
-	x_2 & = u_2 + 0.5x_1; \;\;\;\; u_2 \sim N(20,000, 10,000) \\ \nonumber
-	y & = \sigma \bigg(\frac{x_1 + x_2 - 60,000}{10,000} \bigg) \nonumber
+	x_1 & = u_1; \;\;\;\; u_1 \sim N(30 , 5) \\ \nonumber
+	x_2 & = u_2 + 0.5x_1; \;\;\;\; u_2 \sim N(20, 10) \\ \nonumber
+	y & = \sigma \bigg(x_1 + x_2 - 60\bigg) \nonumber
 \end{align}
 
 
@@ -206,7 +206,7 @@ When incorporating $\softsort$ into the the causal recourse problem defined in e
 
 \section{Generating Recourse}
 
-To generate recourse, we need to solve the constrained optimisation problem from equation \ref{eq:causal_recourse_problem_soft}, where $A$ is the ordered set $A = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$.
+To generate recourse, we need to solve the below constrained optimisation problem from equation \ref{eq:causal_recourse_problem_soft}, where $A$ is the ordered set $A = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$.
 
 \begin{align}
 	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
@@ -215,62 +215,10 @@ To generate recourse, we need to solve the constrained optimisation problem from
 	& A \in \mathcal{F}
 \end{align} 
 
+Due to the non-convexities introduced from $\texttt{SoftSort}$\comment{and any others such as the causal graph}, we cannot solve this problem using convex optimisation (commonly used for constrained optimisation). Instead we convert the problem from a constrained optimisation problem to a unconstrained optimisation problem and solve using gradient descent. We make use of Lagrange multipliers to reach the problem formulation as a min-max objective with constraint that the classifier scores the updated feature values $\mathbf{x}^{\text{SCF}}$ with a score of at least 0.5 (this can be changed for a given classifier score).
 
-
-
-=========================================
-
-
-We denote the interventions as a set $\mathcal{A} = \{(a_1, o_1), (a_2, o_2), \ldots, (a_D, o_D)\}$ where $(a_i, o_i)$ represents that the $o_i$\textsuperscript{th} intervention will be an intervention of $a_i$ on $\mathbf{x}'_i$, the current value of feature $i$ after any previous interventions. The intervention may have downstream effects on other features, as described by the causal graph.
-
-
-The causal graph can be expressed as a weighted adjacency matrix $W$, where $W_{ij}$ is the marginal effect on $\mathbf{x}_j$ of intervening on $\mathbf{x}_i$. Different orderings can result in different values of $\mathbf{x}'$.
-
-Using the same causal graph in Figure \ref{fig:toy_scm} and weighted adjacency $W$ 
-
-The cost of the interventions $\mathcal{A}$ is therefore the sum of a cost function over each individual intervention $a_i$ (for example $c(a_i) = a_i^2$). The cost of the intervention can be expressed as follows, where $D$ is the number of features. 
-
-\begin{equation}
-	c(\mathcal{A}) = \sum_{i=1}^D c(\mathbf{a}_i)
+\begin{equation} \label{eq:lagrange}
+	\min_{A \in \mathcal{F}} \max_{\boldsymbol{\lambda}} \sum_{i=1}^D \texttt{cost}(\mathbf{x}, A) - \boldsymbol{\lambda} \bigg( h(\mathbf{x}^{\text{SCF}}) - 0.5\bigg)
 \end{equation}
 
-The post-intervention features $\mathbf{a}^*$ can be calculated as shown in Algorithm \ref{algo:causal_cost_function}.
-
-\begin{algorithm}
-	\caption{Intervention Evaluation Function}
-	\begin{algorithmic}[1]
-		\Function{EvalInterventions}{$\mathbf{a}, \mathbf{x}, \mathbf{o}, W$}
-		\State \textbf{Input:} size of actions for each feature $\mathbf{a}$, original features $\mathbf{x}$, order of actions $\mathbf{o}$, adjacency matrix $W$
-		\State \textbf{Output:} new features $\textbf{x}^*$
-		\State $\textbf{x}^* \leftarrow \textbf{x}$
-		\State $W \leftarrow W + I$ \Comment{where $I$ is the identity matrix}
-		\State $\mathbf{s} \leftarrow \texttt{argsort}(\mathbf{o})$
-		\For{$i$ in $\mathbf{s}$}\Comment{Loop through each feature in order of action}
-		\State $\textbf{x}^* \leftarrow \textbf{x}^* + \mathbf{a}_i \times W[:,i]^{T}$ \Comment{Update for downstream effects}
-		\EndFor
-		\State \Return $\mathbf{x}^*$
-		\EndFunction
-	\end{algorithmic}
-	\label{algo:causal_cost_function}
-\end{algorithm}
-
-\section{Generating recourse}
-
-Using the new formulation of the cost function as the cost of interventions, we can also re-write the recourse generation problem, given a classifier $h$, original features $x$ and weighted adjacency matrix $W$. We denote the intervention evaluation as described in Algorithm \ref{algo:causal_cost_function} as \texttt{eval}. For negatively classified individuals, the task of recourse involves solving equation \ref{eq:recourse_gen_interventions}, where we minimise the cost of intervention subject to the new features $\mathbf{x}'$ leading to a positive classification (which corresponds to a classification score of greater than 0.5).
-
-\begin{align} \label{eq:recourse_gen_interventions}
-	\mathbf{a}', \mathbf{o}' = & \argmin_{\mathbf{a, o}} \sum_{i=1}^D c(\mathbf{a}_i) \\ \nonumber
-	& \text{ s.t. } h(\texttt{eval}(\mathbf{a, x, o}, W)) \geq 0.5
-\end{align}
-
-As \texttt{eval} is a non-convex function, we cannot solve this constrained optimisation problem using convex optimisation. Instead, is converted into a unconstrained problem using Lagrange multipliers as shown in equation \ref{eq:lagrange_formulation}. This is solved using gradient descent, where at each iteration, a step is first taken to maximise $\lambda$ and then a step is then taken to minimise $\mathbf{a}$ and $\mathbf{o}$.
-
-\begin{equation} \label{eq:lagrange_formulation}
-	\min_{\mathbf{a, o}} \max_\lambda \sum_{i=1}^D c(\mathbf{a}_i) - \lambda (h(\texttt{eval}(\mathbf{a, x, o}, W))-0.5)
-\end{equation}
-
-This expression is possible to optimise using gradient descent when only optimising for $\mathbf{a}$, the function \texttt{eval} contains the line $S \leftarrow \texttt{argsort}(\mathbf{o})$, which is non-differentiable. Therefore, when optimising for the ordering $\mathbf{o}$, we must find an alternative to the $\argsort$ operator.
-
-\subsection{Differentiable sorting}
-
-The key point to make in this section is that technically, as long as a function is differentiable and maps from $f: \mathbb{R}^D \rightarrow \texttt{ordering}^D$, we should be able to take derivatives of $f$ and use gradient descent to find the value of the input to $f$ which minimises the objective defined in equation \ref{eq:lagrange_formulation}. The smoother the function is in its mapping from a vector of real numbers to the ordering (i.e., vectors close to each other map to similar orderings), the fewer local minima it should have, making optimisation easier.
+This expression is then optimised using gradient descent where in each epoch, a gradient descent step is taken for $\boldsymbol{\lambda}$ and then another gradient step is taken for $\mathbf{A}$. The expression is optimised until $h(\mathbf{x}^{\text{SCF}})$ converges to 0.5.

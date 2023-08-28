@@ -5,13 +5,12 @@ from scipy.stats import norm
 from sklearn.linear_model import LogisticRegression
 import matplotlib
 from typing import List, Callable
-from sklearn.datasets import make_spd_matrix
 import matplotlib as mpl
 
-from src.scm import StructuralCausalModel
+from structural_models.scm import StructuralCausalModel
 from src.recourse_model import LearnedCostsRecourse
 from src.utils import get_near_psd, is_psd
-from src.structure_learning import dagma_linear, process_df, dagma_mlp
+from src.structure_learning import process_df, dagma_mlp
 
 matplotlib.use("TkAgg")
 pd.set_option("mode.chained_assignment", None)

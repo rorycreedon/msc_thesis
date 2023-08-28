@@ -123,6 +123,12 @@ class CausalRecourseGenerator:
         self.W_classifier = W_classifier.to(self.device)
         self.b_classifier = torch.tensor(b_classifier).to(self.device)
 
+        # Update default values based on this
+        self.beta = torch.ones(self.X.shape[1]).to(self.device)
+        self.fixed_ordering = (
+            torch.arange(self.X.shape[1]).repeat(self.X.shape[0], 1).to(self.device)
+        )
+
     def set_ordering(self, ordering: torch.Tensor) -> None:
         """
         Set the ordering of the features
@@ -250,6 +256,32 @@ class CausalRecourseGenerator:
 
         return X_prime, cost
 
+    def recover_interventions(self, A: torch.Tensor, O: torch.Tensor):
+        """
+        Recover the interventions from A and O
+        :param A: The actions to take for each variable (after downstream interventions)
+        :param O: The ordering of the features
+        :return:
+        """
+        # Init result tensors
+        if self.learn_ordering:
+            S = torch.max(self.sorter(O), dim=1)[1]
+        else:
+            S = torch.argsort(self.fixed_ordering)
+
+        A_ordered = torch.gather(A, 1, S)
+        X_prime = self.X.clone()
+        actions = torch.zeros_like(self.X)
+
+        for i in range(self.W_adjacency.shape[0]):
+            X_prime += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+            # set actions as what they need to get to
+            actions[torch.arange(self.X.shape[0]), S[:, i]] = torch.gather(
+                X_prime, 1, S
+            )[:, i]
+
+        return actions
+
     @staticmethod
     def clip_tensor_gradients_by_row(tensor, max_norm):
         """Vectorized gradient clipping by row for a single tensor."""
@@ -354,14 +386,14 @@ class CausalRecourseGenerator:
             constraint_list.append(constraint.mean().item())
 
             # log metrics to wandb
-            wandb.log(
-                {
-                    "objective": cost.mean().item(),
-                    "constraint": constraint.mean().item(),
-                }
-            )
+            # wandb.log(
+            #     {
+            #         "objective": cost.mean().item(),
+            #         "constraint": constraint.mean().item(),
+            #     }
+            # )
 
-            # Early stopping
+            # Convergence criteria
             if (
                 epoch > 100
                 and np.std(objective_list[-10:]) < 1e-5
@@ -371,27 +403,49 @@ class CausalRecourseGenerator:
 
             if epoch % 100 == 0 and verbose:
                 print(
-                    f"Epoch {epoch}: Objective: {objective_list[-1]}, Constraint: {constraint_list[-1]}"
+                    f"Epoch {epoch} | Objective: {objective_list[-1]} | Constraint: {constraint_list[-1]}"
                 )
 
-        # Clean for dataframe
-        X_recourse = X_prime.detach().to("cpu")
-        if self.learn_ordering:
-            action_order = torch.max(self.sorter(O), dim=2)[1].detach().to("cpu")
+        if format_as_df:
+            # Clean for dataframe
+            X_recourse = X_prime.detach().to("cpu")
+            if self.learn_ordering:
+                action_order = torch.max(self.sorter(O), dim=2)[1].detach().to("cpu")
+            else:
+                action_order = self.fixed_ordering.to("cpu")
+            actions = self.recover_interventions(
+                A.detach().to("cpu"), O.detach().to("cpu")
+            )
+            # actions = A.detach().to("cpu")
+            costs = cost.detach().to("cpu")
+            probs = torch.sigmoid(constraint + classifier_margin).detach().to("cpu")
+
+            data = {f"X{i+1}": X_recourse[:, i] for i in range(self.X.shape[1])}
+            data.update({f"a{i+1}": actions[:, i] for i in range(self.X.shape[1])})
+            data.update(
+                {f"order{i+1}": action_order[:, i] for i in range(self.X.shape[1])}
+            )
+            data.update({"cost": costs, "prob": probs})
+
+            df = pd.DataFrame(data)
+
+            return df
+
         else:
-            action_order = self.fixed_ordering.to("cpu")
-        actions = A.detach().to("cpu")
-        costs = cost.detach().to("cpu")
-        probs = torch.sigmoid(constraint + classifier_margin).detach().to("cpu")
-
-        data = {f"X{i+1}": X_recourse[:, i] for i in range(self.X.shape[1])}
-        data.update({f"a{i+1}": actions[:, i] for i in range(self.X.shape[1])})
-        data.update({f"order{i+1}": action_order[:, i] for i in range(self.X.shape[1])})
-        data.update({"cost": costs, "prob": probs})
-
-        df = pd.DataFrame(data)
-
-        return df
+            if self.learn_ordering:
+                action_order = torch.max(self.sorter(O), dim=1)[1].detach().to("cpu")
+            else:
+                action_order = self.fixed_ordering.to("cpu")
+            actions = self.recover_interventions(
+                A.detach().to("cpu"), O.detach().to("cpu")
+            )
+            return (
+                X_prime.detach().to("cpu"),
+                action_order,
+                actions,
+                cost.detach().to("cpu"),
+                torch.sigmoid(constraint + classifier_margin).detach().to("cpu"),
+            )
 
 
 if __name__ == "__main__":
@@ -426,17 +480,19 @@ if __name__ == "__main__":
     recourse_gen.set_sorter(tau=args.tau)
 
     # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="causal_recourse_gen",
-        # track hyperparameters and run metadata
-        config={
-            "N": args.N,
-            "lr": args.lr,
-            "cost_function": args.cost_function,
-            "learn_ordering": args.learn_ordering,
-        },
-    )
+    # wandb.init(
+    #     # set the wandb project where this run will be logged
+    #     project="causal_recourse_gen",
+    #     # track hyperparameters and run metadata
+    #     config={
+    #         "N": args.N,
+    #         "lr": args.lr,
+    #         "cost_function": args.cost_function,
+    #         "learn_ordering": args.learn_ordering,
+    #         "tau": args.tau,
+    #         "max_epochs": args.max_epochs,
+    #     },
+    # )
 
     start = time.time()
     df = recourse_gen.gen_recourse(
@@ -445,11 +501,12 @@ if __name__ == "__main__":
         verbose=True,
         cost_function=args.cost_function,
         lr=args.lr,
+        format_as_df=True,
     )
     print(f"Time taken: {time.time() - start} seconds")
     print(f"Average cost: {df['cost'].mean()}")
 
-    wandb.log({"neg_classified": np.mean(df.prob < 0.5)})
+    # wandb.log({"neg_classified": np.mean(df.prob < 0.5)})
 
     # Gen recourse
     print(df[["a1", "a2", "a3", "a4", "cost", "prob"]].head())

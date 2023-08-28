@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import concurrent.futures
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from causal_recourse_gen import CausalRecourseGenerator
 
@@ -11,13 +12,19 @@ class BetaLearner(CausalRecourseGenerator):
         self,
         n_comparisons: int,
         ground_truth_beta: torch.Tensor,
+        ground_truth_W: torch.Tensor,
         learn_ordering: bool = False,
+        W_known: bool = False,
     ):
         super(BetaLearner, self).__init__(
             learn_ordering=learn_ordering,
         )
         self.n_comparisons = n_comparisons
-        self.ground_truth_beta = ground_truth_beta
+        self.ground_truth_beta = ground_truth_beta / torch.sum(ground_truth_beta)
+        self.ground_truth_W = ground_truth_W
+
+        # Whether or not the weighted adjacency matrix is known
+        self.W_known = W_known
 
         # Sampled betas
         self.sampled_betas = None
@@ -26,6 +33,91 @@ class BetaLearner(CausalRecourseGenerator):
         self.outcomes = None
         self.ordering = None
         self.actions = None
+
+    def gen_pairwise_comparisons(self) -> None:
+        """
+        Generate pairwise comparisons for cost learning. Append on to existing comparisons if they exist.
+        :return: None
+        """
+        # Add perturbations to X
+        perturbations = torch.rand(
+            size=(self.n_comparisons * 2, self.X.shape[0], self.X.shape[1])
+        )  # TODO: update this
+        X_perturbed = self.X + perturbations
+
+        # Evaluate the model on the perturbed data
+        logits = X_perturbed @ self.W_classifier + self.b_classifier
+
+        # Change one variable (randomly selected) in X_perturbed such that h(X)=0.5
+        def random_pick_index(arr):
+            return np.random.choice(len(arr))
+
+        idx = np.apply_along_axis(random_pick_index, 2, X_perturbed)
+        values_to_change = np.take_along_axis(
+            X_perturbed, idx[..., np.newaxis], axis=2
+        ).squeeze()
+        weights_to_change = self.W_classifier[torch.tensor(idx)]
+        updated_values = values_to_change - logits / weights_to_change
+        idx0, idx1 = np.ogrid[: X_perturbed.shape[0], : X_perturbed.shape[1]]
+        X_perturbed[idx0, idx1, idx] = updated_values
+        X_perturbed = np.reshape(
+            X_perturbed,
+            (self.n_comparisons, 2, X_perturbed.shape[1], X_perturbed.shape[2]),
+        )
+
+        # Create pairwise comparisons
+        self.pairwise_comparisons = X_perturbed
+
+    @staticmethod
+    def eval_actions_new_non_diff(
+        X, actions, ordering, W_adjacency, beta
+    ) -> torch.Tensor:
+        """
+        Evaluate the actions in the pairwise comparisons
+        :return: None
+        """
+        X_bar = X.clone()
+        if (
+            ordering.shape[-1] == ordering.shape[-2]
+        ):  # this is the cases where we have a permutation matrix
+            S = torch.argsort(ordering)
+        else:
+            S = ordering.to(int)
+        actions_ordered = torch.gather(actions, 1, S)
+        costs = torch.zeros(X.shape[0])
+        W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
+
+        for i in range(W_adjacency.shape[0]):
+            costs += (
+                beta[ordering.to(int)[:, i]]
+                * (
+                    actions[torch.arange(X.shape[0]), S[:, i]]
+                    - X_bar[torch.arange(X.shape[0]), S[:, i]]
+                )
+                ** 2
+            )
+            X_bar += W_temp[S[:, i]] * actions_ordered[:, i].unsqueeze(-1)
+
+        return costs
+
+    @staticmethod
+    def eval_actions_new_diff(X, actions, ordering, W_adjacency, sorter):
+        # Init result tensors
+        X_bar = X.clone()
+        S = sorter(ordering)
+        costs = torch.zeros(X.shape[0])
+        W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
+
+        for i in range(W_adjacency.shape[0]):
+            costs += (S @ beta)[:, i] * (
+                torch.bmm(S, X.unsqueeze(2)).squeeze(2)[:, i]
+                - torch.bmm(S, actions.unsqueeze(2)).squeeze(2)[:, i]
+            ) ** 2
+            X_bar += (
+                (W_temp.T * S[:, i].unsqueeze(-1)) @ actions.unsqueeze(-1)
+            ).squeeze(-1)
+
+        return costs
 
     def sample_betas(self, xrange: tuple[float, float]) -> None:
         """
@@ -58,6 +150,7 @@ class BetaLearner(CausalRecourseGenerator):
         S = torch.argsort(ordering)
         cost = torch.zeros(X.shape[0])
         A_ordered = torch.gather(A, 1, S)
+
         W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
 
         if beta.dim() == 1:
@@ -100,7 +193,7 @@ class BetaLearner(CausalRecourseGenerator):
 
         for i in range(W_adjacency.shape[0]):
             X_bar += (
-                (W_adjacency.T * S[:, 0].unsqueeze(-1)) @ A.unsqueeze(-1)
+                (W_adjacency.T * S[:, i].unsqueeze(-1)) @ A.unsqueeze(-1)
             ).squeeze(-1)
             cost += torch.sum(A**2 * S[:, i] * beta, dim=1)
 
@@ -120,10 +213,10 @@ class BetaLearner(CausalRecourseGenerator):
         :return: None
         """
         self.ordering = torch.zeros(
-            2, self.n_comparisons, self.X.shape[0], self.X.shape[1]
+            2, self.n_comparisons, self.X.shape[0], self.X.shape[1], dtype=torch.float64
         )
         self.actions = torch.zeros(
-            2, self.n_comparisons, self.X.shape[0], self.X.shape[1]
+            2, self.n_comparisons, self.X.shape[0], self.X.shape[1], dtype=torch.float64
         )
         costs = torch.zeros(2, self.n_comparisons, self.X.shape[0])
 
@@ -142,14 +235,14 @@ class BetaLearner(CausalRecourseGenerator):
                         format_as_df=False,
                     )
                     self.ordering[i, j] = order
-                    self.actions[i, j] = action
-                    costs[i, j] = self.eval_actions_non_differentiable(
+                    self.actions[i, j] = action.detach()
+                    costs[i, j] = self.eval_actions_new_non_diff(
                         X=self.X,
-                        W_adjacency=self.W_adjacency,
+                        W_adjacency=self.ground_truth_W,
                         ordering=order,
                         beta=self.ground_truth_beta,
-                        A=action,
-                    )[1]
+                        actions=action,
+                    )
                     pbar.update(1)
 
         self.outcomes = torch.where(costs[0] - costs[1] < 0, -1, 1)
@@ -180,12 +273,14 @@ class BetaLearner(CausalRecourseGenerator):
         classifier_margin: float = 0.02,
         max_epochs: int = 5_000,
         lr: float = 1e-2,
+        W_adjacency_ground_truth: torch.Tensor = None,
     ) -> None:
         """
         Parallelised function to generate recourse actions (and orders) for the sampled betas and evaluate which of the actions and orders have lower ground truth costs
         :param classifier_margin: Margin for the classifier
         :param max_epochs: Maximum number of epochs for the recourse generator
         :param lr: Learning rate for the recourse generator
+        :param W_adjacency_ground_truth: Ground truth adjacency matrix
         :return: None
         """
         self.ordering = torch.zeros(
@@ -216,7 +311,7 @@ class BetaLearner(CausalRecourseGenerator):
                     self.actions[i, j] = action
                     costs[i, j] = self.eval_actions_non_differentiable(
                         X=self.X,
-                        W_adjacency=self.W_adjacency,
+                        W_adjacency=self.ground_truth_W,
                         ordering=order,
                         beta=self.ground_truth_beta,
                         A=action,
@@ -235,7 +330,9 @@ class BetaLearner(CausalRecourseGenerator):
         """
         return torch.clamp(1 - (y_true * y_pred), min=0)
 
-    def beta_loss(self, beta: torch.Tensor, tanh_param: float = 50) -> torch.Tensor:
+    def beta_loss(
+        self, beta: torch.Tensor, W_adjacency: torch.Tensor, tanh_param: float = 50
+    ) -> torch.Tensor:
         """
         Loss function for the beta learner
         :param beta: Beta to be evaluated
@@ -244,26 +341,26 @@ class BetaLearner(CausalRecourseGenerator):
         """
         costs_0 = torch.stack(
             [
-                self.eval_actions_non_differentiable(
+                self.eval_actions_new_non_diff(
                     X=self.X,
-                    W_adjacency=self.W_adjacency,
+                    W_adjacency=W_adjacency,
                     ordering=self.ordering[0][i],
                     beta=beta,
-                    A=self.actions[0][i],
-                )[1]
+                    actions=self.actions[0][i],
+                )
                 for i in range(self.n_comparisons)
             ]
         )
 
         costs_1 = torch.stack(
             [
-                self.eval_actions_non_differentiable(
+                self.eval_actions_new_non_diff(
                     X=self.X,
-                    W_adjacency=self.W_adjacency,
+                    W_adjacency=W_adjacency,
                     ordering=self.ordering[1][i],
                     beta=beta,
-                    A=self.actions[1][i],
-                )[1]
+                    actions=self.actions[1][i],
+                )
                 for i in range(self.n_comparisons)
             ]
         )
@@ -297,8 +394,24 @@ class BetaLearner(CausalRecourseGenerator):
             self.X.shape[1], dtype=torch.float64, requires_grad=True
         )
 
+        # If W assumed to be known, set it to the ground truth
+        if self.W_known:
+            learned_W = self.ground_truth_W
+        else:
+            # require grad for W_adjacency
+            temp = self.W_adjacency.clone().detach().numpy()
+            temp = temp - np.eye(temp.shape[0])
+            # set diagonals of temp to 0
+            temp = temp - np.diag(np.diag(temp))
+            learned_W = torch.tensor(temp, dtype=torch.float64, requires_grad=True)
+
         # Optimiser
-        optimizer = torch.optim.AdamW([learned_beta], lr=lr, weight_decay=l2_reg)
+        if self.W_known:
+            optimizer = torch.optim.AdamW([learned_beta], lr=lr, weight_decay=l2_reg)
+        else:
+            optimizer = torch.optim.AdamW(
+                [learned_W, learned_beta], lr=lr, weight_decay=l2_reg
+            )
 
         loss_list = []
 
@@ -307,11 +420,23 @@ class BetaLearner(CausalRecourseGenerator):
         # Training loop
         for epoch in range(max_epochs):
             optimizer.zero_grad()
-            loss = self.beta_loss(learned_beta, tanh_param=tanh_param)
+            loss = self.beta_loss(
+                learned_beta, tanh_param=tanh_param, W_adjacency=learned_W
+            )
             loss.backward()
+
+            if self.W_known is False:
+                # add a mask to gre gradients so gradients are fixed at 0 for diagonal elements
+                mask = torch.eye(learned_W.shape[0])
+                learned_W.grad *= mask
+
             optimizer.step()
-            # Ensure beta is positive
+
+            # Ensure beta is positive and normalise so it sums to 1
             learned_beta.data = torch.clamp(learned_beta.data, min=0)
+            learned_beta.data = learned_beta.data / torch.sum(learned_beta.data)
+
+            # Track losses
             loss_list.append(loss.item())
             if verbose and epoch % 500 == 0:
                 print(f"Epoch {epoch} | Loss {loss.item()}")
@@ -323,12 +448,17 @@ class BetaLearner(CausalRecourseGenerator):
 
         if verbose:
             print(f"Learned beta: {learned_beta.detach()}")
-            print(f"Ground truth beta: {self.ground_truth_beta}")
+            print(f"Ground truth beta: {self.ground_truth_beta}\n")
 
-        return learned_beta.detach()
+            # if self.W_known:
+            print(f"Learned W: {learned_W.detach()}")
+            print(f"Ground truth W: {self.ground_truth_W}\n")
+
+        return learned_beta.detach(), loss_list
 
 
 if __name__ == "__main__":
+    # torch.autograd.set_detect_anomaly(True)
     N = 500
 
     # FIXED PARAMETERS
@@ -336,19 +466,27 @@ if __name__ == "__main__":
     W_adjacency = torch.tensor(
         [[0, 0, 0, 0], [0.3, 0, 0, 0], [0.2, 0, 0, 0], [0, 0.2, 0.3, 0]],
         dtype=torch.float64,
+        requires_grad=True,
     )
     W_classifier = torch.tensor([-2, -3, -1, -4], dtype=torch.float64)
     beta = torch.tensor([0.5, 0.5, 0.5, 0.5], dtype=torch.float64)
+
+    W_adjacency_ground_truth = torch.tensor(
+        [[0, 0, 0, 0], [0.9, 0, 0, 0], [0.5, 0, 0, 0], [0, 0.1, 1.2, 0]],
+        dtype=torch.float64,
+    )
 
     # GENERATE ALTERNATIVE ACTIONS AND ORDERINGS
     beta_learner = BetaLearner(
         n_comparisons=5,
         learn_ordering=True,
         ground_truth_beta=torch.tensor([2, 1, 7, 0.2]),
+        ground_truth_W=W_adjacency_ground_truth,
     )
     beta_learner.add_data(
         X=X, W_adjacency=W_adjacency, W_classifier=W_classifier, b_classifier=0.5
     )
+    # beta_learner.gen_pairwise_comparisons()
     beta_learner.set_beta(beta)
     beta_learner.set_ordering(torch.arange(4).repeat(N, 1))
     # beta_learner.set_sorter(tau=0.1)

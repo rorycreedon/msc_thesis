@@ -1,28 +1,38 @@
 \chapter{Cost Learning}
 
+At the beginning of chapter \ref{chapter:causal_recourse}, we noted that the cost function used in the literature is typically of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$. Chapter \ref{chapter:causal_recourse} dealt with one of the limitations of this cost function - that it does not take into account the downstream effects of changing one feature on other features. In this chapter, we deal with another limitation of cost functions of this form - they fail to take into account user preferences over how difficult to manipulate different features are. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort.
 
-\section{Learning from revealed preferences}
+There do exist standard cost functions which take into account user preference, for example a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.\comment{Explain how $\mathbf{M}$ encodes user preference} However, $\mathbf{M}$ must be selected in advance of generating recourse. In this chapter, we propose a methodology for \textit{learning} user preferences.
 
-We do not observe the cost function itself, but one way to approximate it is to \textit{learn from revealed preferences} (see section \ref{section:revealed_pref_lit}). We propose that each individual who is negatively classified is presented with $N$ pairs of recourse options $((\mathbf{a}_n^1, \mathbf{o}_n^1),(\mathbf{a}_n^2, \mathbf{o}_n^2))$. Each of the recourse options corresponds to a list of actions and associated orderings. The individuals, for each of the $N$ pairs of recourse options, then select which one is preferable. \comment{Need to rephrase actions as the total action (even if you get part of it for 'free'.}
 
-If, for a single pair of recourse options $((\mathbf{a}_n^1, \mathbf{o}_n^1),(\mathbf{a}_n^2, \mathbf{o}_n^2))$, option 1 is selected, then we assume that $\sum_{i=1}^D c(\mathbf{a}^1_{ni}) \leq \sum_{i=1}^D c(\mathbf{a}^2_{ni})$. If option 2 is selected, we assume the opposite, that $\sum_{i=1}^D c(\mathbf{a}^1_{ni}) > \sum_{i=1}^D c(\mathbf{a}^2_{ni})$. The responses to the pairs of recourse options presented (the pairwise comparisons) reveal information about the individuals' preferences over recourse options, i.e., their cost functions over individual features. \comment{User preference over cost functions involves knowledge of the causal graph, should this then be optimised for in learning from revealed preferences.)}
+\section{Learning from Revealed Preferences}
 
-Once a cost function is learned, we need to solve the optimisation problem mentioned in equation \ref{eq:lagrange_formulation} to generate the recourse $(\mathbf{a}', \mathbf{o}')$.
+Revealed preference theory \citep{samuelsonNotePureTheory1938, samuelsonConsumptionTheoryTerms1948} is an economic theory that states that if a consumer if offered a bundle of goods $x$ and a bundle of goods $y$ both within a budget set $B$ and the consumer chooses $x$ over $y$, then $x$ is revealed preferred to $y$.\comment{Rewrite this and expand, potentially state was WARP and SARP are.} From the consumer's decision to purchase bundle $x$ over bundle $y$, the consumer \textit{reveals} their (normative) \textit{preferences} over $x$ and $y$.
 
-\subsection{Weighted Squared Costs}
+We can use this idea to learn individuals' revealed preferences over feature mutability. Whilst humans are not able to describe their preferences mathematically, they are able to express their preferences when given limited options to choose from\comment{Cite this - maybe from economics, maybe from psychology}. We propose that after being classified, individuals after given a series of pairwise comparisons. They are presented with two possible sets of features $\mathbf{x}^1$ and $\mathbf{x}^2$, both of which are on the decision boundary (meaning that $h(\mathbf{x}^i)=0.5$), and they are asked to indicate which set of features they would prefer to change to. If $\mathbf{x}^1$ if preferred to $\mathbf{x}^2$, then we learn that $\texttt{cost}(\mathbf{x}, \mathbf{x}^1) < \texttt{cost}(\mathbf{x}, \mathbf{x}^2)$. We can use this information to parametrise a cost function which takes into account user preference.
 
-Let the individual cost function take the form $c(\mathbf{a}, \beta) = \sum_{i=1}^D \beta_i \mathbf{a}^2_i$, where $\beta \in \mathbb{R}^D$ is a vector which expresses the mutability of each feature $i$. To learn the cost function, we need to learn $\beta$.
+[\textit{Add in here section detailing that we envision an online system where you have to answer these questions to get your recourse suggestion/decision.}]
 
-Given a fixed weighted adjacency matrix $W$,\comment{Seems much more efficient to assume a fixed ordering} we can denote the response of the $n$th paired comparison as follows.
+We assume that users have perfect knowledge of the underlying structural causal model when making evaluating which of the sets of features they prefer.\comment{Justify this.} Whilst in chapter \ref{chapter:causal_recourse}, we formulated the cost of recourse as a function of the original features $\mathbf{x}$ and an ordered set of actions $A$, we instead present users with alternative sets of features $\mathbf{x}^1$ and $\mathbf{x}^2$.\comment{Add in a sentence here explaining why - i.e., it is a bit unrealistic to give users an ordered set of actions - they might prefer it in a different order.}
+
+\section{Cost Learning Formulation}
+
+We now formulate the cost learning problem, where there are $N$ individuals who are each presented with $K$ pairwise comparisons. Individuals are presented with two recourse options $(\mathbf{x}^1, \mathbf{x}^2)$. We record the response of the $n^{\text{th}}$ individual to their $k^{\text{th}}$ comparison as $y_{kn}$, which is defined below, where $\mathbf{x}_n$ represents the $n^{\text{th}}$ individuals' original features.
 
 \begin{equation} \label{eq:paired_response}
-	y_{n} = \begin{cases}
-		-1 & \text{if } \sum_{i=1}^D c(\mathbf{a}^1_{ni}) \leq \sum_{i=1}^D c(\mathbf{a}^2_{ni}) \\
-		+1 & \text{if }  \sum_{i=1}^D c(\mathbf{a}^1_{ni}) > \sum_{i=1}^D c(\mathbf{a}^2_{ni}) \\
+	y_{kn} = \begin{cases}
+		-1 & \text{if } c(\mathbf{x}_n, \mathbf{x}^1_{kn}) \leq c(\mathbf{x}_n \mathbf{x}^2_{kn}) \\
+		+1 & \text{if }  c(\mathbf{x}_n, \mathbf{x}^1_{kn}) > c(\mathbf{x}_n, \mathbf{x}^2_{kn}) \\
 	\end{cases}
 \end{equation}
 
-We optimise for when $y_n$ and $\hat{y}_n$ (the predicted value of $y_n$, using our initial guess of $\beta$) are similar. A optimisation to do this is shown below, where there are $K$ individuals and $N$ pairwise comparisons and $\ell(y, \hat{y}) = \max[0, 1-y\hat{y}]$ represents the hinge loss.
+
+
+\subsection{Perfect Knowledge of the Structural Causal Model}
+
+Let us first consider the case where we have perfect knowledge of the structural causal model. 
+
+We optimise for when $y_{kn}$ and $\hat{y}_{kn}$ (the predicted value of $y_{kn}$, using our initial guess of $\beta$ - which represents how mutable each feature is) are similar. A optimisation to do this is shown below, where there are $K$ individuals and $N$ pairwise comparisons and $\ell(y, \hat{y}) = \max[0, 1-y\hat{y}]$ represents the hinge loss.
 
 \begin{equation}
 	\argmin_\beta = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}(\beta)) + \underbrace{\lambda ||\beta||_2}_{\text{L2 regularisation}}
@@ -30,41 +40,39 @@ We optimise for when $y_n$ and $\hat{y}_n$ (the predicted value of $y_n$, using 
 
 This is an unconstrained optimised problem that can be optimised via gradient descent. However, operation in equation \ref{eq:paired_response} is non, differentiable, so instead it is approximated with the below expression, which fits $\hat{y}_n$ into [-1,1] where $\lambda$ is a hyperparameter regularising for 'confidence' of the predictions.
 
+\begin{equation} \label{eq:yhat_relaxation}
+	\hat{y}_{kn} = \tanh \Bigg(\lambda \Big(c(\mathbf{x}_n, \mathbf{x}^1_{kn}) - c(\mathbf{x}_n, \mathbf{x}^2_{kn})\Big)\Bigg)
+\end{equation}
+
+\subsection{Imperfect Knowledge of the Structural Causal Model}
+
+The key difference here is that we do not have perfect knowledge of the causal model, so if users are making decisions based on the true causal model, then we should also learn the parameters of the (assumed linear) structural causal model. Let the linear structural causal model have a \textit{weighted} adjacency matrix $W$. In this case, the optimisation problem is shown below. 
+
 \begin{equation}
-	\hat{y}_n = \tanh \Bigg(\lambda \Big(\sum_{i=1}^D c(\mathbf{a}^1_{ni}) - \sum_{i=1}^D c(\mathbf{a}^2_{ni})\Big)\Bigg)
+	\argmin_{\beta, W} = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}(\beta, W)) + \underbrace{\lambda_1 ||\beta||_2 + \lambda_2||W||_2}_{\text{L2 regularisation}}
 \end{equation}
 
+The expression for $y_{kn}$ in equation \ref{eq:paired_response} is still non-convex, so again use the continuous approximation of $\hat{y}_{kn}$ as shown in equation \ref{eq:yhat_relaxation}.
 
-\section{Mahalanobis distance}
+\section{Cost Function}
+In each of the following subsections, outlining the different cost functions used. Currently have implemented weighted squared costs (weights are feature mutability $\beta$) and log-KDE shift.
 
-The Mahalanobis distance between the vector $\mathbf{x}$ and the vector $\mathbf{y}$ is defined in equation \ref{eq:mahalanbobis_distance}, where $M$ is a positive semi-definite matrix.
+\subsection{Weighted Squared Costs}
 
-\begin{equation} \label{eq:mahalanbobis_distance}
-	||\mathbf{x-y}||_{\mathbf{M}} = \sqrt{(\mathbf{x-y})^T\mathbf{M}^{-1}(\mathbf{x-y})}
+Let the individual cost function take the below form, where $\beta \in \mathbb{R}^D$ is a vector which expresses the mutability of each feature $i$. The order does not matter in this case, as the cost function only depends on $\delta$, not $\mathbf{x}$ (see Proposition 1).
+
+\begin{equation}
+	\texttt{cost}(A, \beta) = \sum_{i=1}^D \beta_i \delta^2_i
 \end{equation}
 
-The matrix $\mathbf{M}$ captures different relationships between the features within $\mathbf{x}$ and $\mathbf{y}$ in the off-diagonal elements of $\mathbf{M}$. If $\mathbf{M}$ is set to the identity matrix, then the Mahalanobis distance then becomes equal to the Euclidean distance between $\mathbf{x}$ and $\mathbf{y}$. \\
+\subsection{Log KDE Shift}
 
-\subsection{Learning the Mahalanobis distance}
+This is an adaptation of log-percentile shift \citep{ustunActionableRecourseLinear2019}, which is defined below, where $Q_i(\mathbf{x}_i)$ is the (empirical) CDF of $\mathbf{x}_i$. The use of a $\log$ is so that moving from percentile 50 to 55 is easier than moving from percentile 90 to 95.
 
-In order to use the Mahalanobis distance as a cost function, we must learn the matrix $\mathbf{M}$. In this set-up, each individual $k$ with original features $\mathbf{x}_k$ is presented with $N$ recourse options $(\mathbf{x}_{kn}^a, \mathbf{x}_{kn}^b)$. The response $y_{kn}$ is defined in equation \ref{eq:response_definition}, where $c^G_k$ represents the ground truth cost function of individual $k$.
-
-\begin{equation} \label{eq:response_definition}
-	y_{kn} = \begin{cases}
-		-1 & \text{if } c^G_k(\mathbf{x}_{kn}, \mathbf{x}^a_{kn}) \leq c^G_k(\mathbf{x}_{kn}, \mathbf{x}^b_{kn}) \\
-		+1 & \text{if } c^G_k(\mathbf{x}_{kn}, \mathbf{x}^a_{kn}) > c^G_k(\mathbf{x}_{kn}, \mathbf{x}^b_{kn}) \\
-	\end{cases}
+\begin{equation}
+	\texttt{cost}(\mathbf{x}, A) = \sum_{i=1}^D \beta_i \log (\frac{1 - Q_i(\mathbf{x} + \delta_i)}{1 - Q_i(\mathbf{x})})
 \end{equation}
 
-To optimise for $\textbf{M}$, we compare the squared Mahalanobis distances between $\textbf{x}_k$ and $\textbf{x}^a_{kn}$ and between $\textbf{x}_k$ and $\textbf{x}^b_{kn}$. The optimisation problem to learn $\textbf{M}$ is shown in equation \ref{eq:mahalanobis_non_convex}, where $\ell$ represents either the hinge or logistic loss function. The optimisation is an adaptation of the optimisation problem presented in \textcite{canalOneAllSimultaneous2022}.
+However, using a CDF lead to instability issues when generating recourse, so I have replaced the CDF with a KDE (kernel density estimate).
 
-[\textbf{TO ADD EXPLANATION ON WHY THIS IS A GOOD OPTIMISATION}]
-
-\begin{align} \label{eq:mahalanobis_non_convex}
-	\min_{\mathbf{M}} & \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell \bigg( y_{kn} \big(|| \mathbf{x}_k - \mathbf{x}_{kn}^a ||^2_{\mathbf{M}} - || \mathbf{x}_k - \mathbf{x}_{kn}^b ||^2_{\mathbf{M}} \big) \bigg) \\	
-	\text{s.t. } & \mathbf{M} \succeq 0, \nonumber
-\end{align}
-
-\section{Convex layers}
-
-To look into convex neural networks using \href{https://github.com/cvxgrp/cvxpylayers}{\texttt{cvxpylayers}}, which is based on \textcite{agrawalDifferentiableConvexOptimization2019}.
+\subsection{Mahalanobis Distance}
