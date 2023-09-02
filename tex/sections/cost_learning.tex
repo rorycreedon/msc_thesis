@@ -1,28 +1,65 @@
-\chapter{Cost Learning}
+\chapter{Cost Learning} \label{chapter:cost_learning}
 
-At the beginning of chapter \ref{chapter:causal_recourse}, we noted that the cost function used in the literature is typically of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$. Chapter \ref{chapter:causal_recourse} dealt with one of the limitations of this cost function - that it does not take into account the downstream effects of changing one feature on other features. In this chapter, we deal with another limitation of cost functions of this form - they fail to take into account user preferences over how difficult to manipulate different features are. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort.
+At the beginning of chapter \ref{chapter:causal_recourse}, we noted that the cost function used in the literature is typically of the form $c(\boldsymbol{x}, \boldsymbol{x}') = (\boldsymbol{x} - \boldsymbol{x}')^2$. Chapter \ref{chapter:causal_recourse} dealt with one of the limitations of this cost function - that it does not take into account the downstream effects of changing one feature on other features. In this chapter, we deal with another limitation of cost functions of this form - they fail to take into account user preferences over how difficult to manipulate different features are. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort.
 
-There do exist standard cost functions which take into account user preference, for example a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.\comment{Explain how $\mathbf{M}$ encodes user preference} However, $\mathbf{M}$ must be selected in advance of generating recourse. In this chapter, we propose a methodology for \textit{learning} user preferences.
+There do exist standard cost functions which take into account user preference, for example a quadratic form cost function $c(\boldsymbol{x}, \boldsymbol{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.\comment{Explain how $\mathbf{M}$ encodes user preference} However, $\mathbf{M}$ must be selected in advance of generating recourse. In this chapter, we propose a methodology for \textit{learning} user preferences.
+
+\textbf{[TO RE-WRITE THE ABOVE, TAKING INTO ACCOUNT THE INTRODUCTION]}
 
 
 \section{Learning from Revealed Preferences}
 
 Revealed preference theory \citep{samuelsonNotePureTheory1938, samuelsonConsumptionTheoryTerms1948} is an economic theory that states that if a consumer if offered a bundle of goods $x$ and a bundle of goods $y$ both within a budget set $B$ and the consumer chooses $x$ over $y$, then $x$ is revealed preferred to $y$.\comment{Rewrite this and expand, potentially state was WARP and SARP are.} From the consumer's decision to purchase bundle $x$ over bundle $y$, the consumer \textit{reveals} their (normative) \textit{preferences} over $x$ and $y$.
 
-We can use this idea to learn individuals' revealed preferences over feature mutability. Whilst humans are not able to describe their preferences mathematically, they are able to express their preferences when given limited options to choose from\comment{Cite this - maybe from economics, maybe from psychology}. We propose that after being classified, individuals after given a series of pairwise comparisons. They are presented with two possible sets of features $\mathbf{x}^1$ and $\mathbf{x}^2$, both of which are on the decision boundary (meaning that $h(\mathbf{x}^i)=0.5$), and they are asked to indicate which set of features they would prefer to change to. If $\mathbf{x}^1$ if preferred to $\mathbf{x}^2$, then we learn that $\texttt{cost}(\mathbf{x}, \mathbf{x}^1) < \texttt{cost}(\mathbf{x}, \mathbf{x}^2)$. We can use this information to parametrise a cost function which takes into account user preference.
+We can use this idea to learn individuals' revealed preferences over feature mutability. Whilst humans are not able to describe their own preferences mathematically, they are able to express their preferences when given limited options to choose from. We propose to ask negatively classified individual a series of questions. In each question, individuals are asked to compare two sets of ordered actions $A^1$ and $A^2$ and responds with whichever one is least costly. If $A^1$ is preferred to $A^2$. We can use this information to parameterise a cost function which takes into account user preference.
 
-[\textit{Add in here section detailing that we envision an online system where you have to answer these questions to get your recourse suggestion/decision.}]
+Whilst when recourse is finally provided after costs have been learned, it is provided in the form of an alternative vector of features $\boldsymbol{x}^*$, note that we propose to ask the individuals to compare two sets of ordered actions. This is because are many combinations of different actions and orderings that would result in the same alternative vector of features $\boldsymbol{x}^'$. The deployer of the model (i.e., the digital bank in the credit scoring setting) does not observe the which actions the individuals would take in order to change their feature values from $\boldsymbol{x}$ to $\boldsymbol{x}^'$. As the deployer of the model does not observe how much each feature would have been intervened upon, it becomes very difficult to learn how relatively mutable each feature is. \\
 
-We assume that users have perfect knowledge of the underlying structural causal model when making evaluating which of the sets of features they prefer.\comment{Justify this.} Whilst in chapter \ref{chapter:causal_recourse}, we formulated the cost of recourse as a function of the original features $\mathbf{x}$ and an ordered set of actions $A$, we instead present users with alternative sets of features $\mathbf{x}^1$ and $\mathbf{x}^2$.\comment{Add in a sentence here explaining why - i.e., it is a bit unrealistic to give users an ordered set of actions - they might prefer it in a different order.}
+A demonstration of one of the pairwise comparisons that users are asked to evaluate are shown in Figure \ref{fig:comparison_ui}. We envision that users are asked to evaluate these comparisons in an online system, where they must answer the pairwise comparisons in order for recourse to be generated and presented to the users.
+
+\begin{figure}[!htb]
+	\centering
+	\begin{tabular}{l|l}
+		\hline
+		\textbf{Action Set 1} & \textbf{Action Set 2} \\
+		\hline
+		\textsc{1. Salary} $\to$ £70,000 & \textsc{1. Savings} $\to$ £45,000 \\
+		\multicolumn{1}{c|}{\textit{then}} & \multicolumn{1}{c}{\textit{then}}\\
+		\textsc{2. Savings} $\to$ £52,000 & \textsc{2. Debt} $\to$ £5,000 \\
+		\multicolumn{1}{c|}{\textit{then}} & \multicolumn{1}{c}{\textit{then}}\\
+		\textsc{3. Debt} $\to$ £7,000 & \textsc{3. Salary} $\to$ £65,000 \\ 
+		\hline
+	\end{tabular}
+	
+	\vspace{1.5em} % Add some vertical space between the table and the text.
+	\parbox{\linewidth}{
+		\centering
+		\textit{Question for user:}\\
+		Which of the above sets of actions are easier to complete? \\
+		$\Box$ Action Set 1 \\
+		$\Box$ Action Set 2
+	}
+	
+	\caption{Hypothetical pairwise comparison a user is asked to respond to.}
+	\label{fig:comparison_ui}
+\end{figure}
+
+We assume that, \textit{on average}, users have perfect knowledge of the SCM\comment{justify this - feels a bit like an extension of rational choice theory except that it relates to the real world as opposed to their own preferences} when evaluating which of the sets of actions they find least costly. Knowledge of the underlying structural causal model is crucial when evaluating actions, as actions may have causal effects of other variables and will affect the cost of other actions. For the same user preferences, the cost of the same actions could have different costs if there is a different underlying structural causal model. Consider a two variable SCM with income causing savings. In the first case, income has a very large positive effect on savings, and the in second case, income has a small positive effect on savings. In both cases the actions are to first increase income by £10,000 and then increase savings by £10,000. The cost of increasing income is the same in both cases, but the cost of increase savings is lower in the first case, as there is a large downstream effect of the increase in income on savings, meaning the additional amount to save is lower, and therefore, less costly in the first case.
 
 \section{Cost Learning Formulation}
 
-We now formulate the cost learning problem, where there are $N$ individuals who are each presented with $K$ pairwise comparisons. Individuals are presented with two recourse options $(\mathbf{x}^1, \mathbf{x}^2)$. We record the response of the $n^{\text{th}}$ individual to their $k^{\text{th}}$ comparison as $y_{kn}$, which is defined below, where $\mathbf{x}_n$ represents the $n^{\text{th}}$ individuals' original features.
+We now formulate the cost learning problem, where there are $N$ individuals who are each presented with $K$ pairwise comparisons. In each comparison, each individual compares two sets of ordered actions $(A^1, A^2)$. We record the response of the $n^{\text{th}}$ individual to their $k^{\text{th}}$ comparison as $y_{kn}$, which is defined below, where $\boldsymbol{x}_n$ represents the $n^{\text{th}}$ individuals' original features.
+
+
 
 \begin{equation} \label{eq:paired_response}
+%	y_{kn} = \begin{cases}
+%		-1 & \text{if } c(\boldsymbol{x}_n, \boldsymbol{x}^1_{kn}) \leq c(\boldsymbol{x}_n \boldsymbol{x}^2_{kn}) \\
+%		+1 & \text{if }  c(\boldsymbol{x}_n, \boldsymbol{x}^1_{kn}) > c(\boldsymbol{x}_n, \boldsymbol{x}^2_{kn}) \\
+%	\end{cases}
 	y_{kn} = \begin{cases}
-		-1 & \text{if } c(\mathbf{x}_n, \mathbf{x}^1_{kn}) \leq c(\mathbf{x}_n \mathbf{x}^2_{kn}) \\
-		+1 & \text{if }  c(\mathbf{x}_n, \mathbf{x}^1_{kn}) > c(\mathbf{x}_n, \mathbf{x}^2_{kn}) \\
+		-1 & \text{if } A^1_{kn} \text{ preferred to } A^2_{kn} \\
+		+1 & \text{if } A^2_{kn} \text{ preferred to } A^1_{kn}
 	\end{cases}
 \end{equation}
 
@@ -30,49 +67,53 @@ We now formulate the cost learning problem, where there are $N$ individuals who 
 
 \subsection{Perfect Knowledge of the Structural Causal Model}
 
-Let us first consider the case where we have perfect knowledge of the structural causal model. 
+Let us first consider the case where both the deployer of the model and the individuals have perfect knowledge of the structural causal model. In this case, the individuals have a ground truth cost function $\cost^G(\boldsymbol{x}, A|\beta, W)$ which is parameterised by $\beta$, how mutable each feature is and $W$, the parameters of the structural equations in the SCM. As the model deployer has perfect knowledge of the SCM, they do not need to learn $W$. As they are also aware of the actions being proposed to the individuals in each comparison, they also have $A$ available to them. Therefore, in this case, the only variable they need to learn is the relative mutability of each feature $\beta$.\\
 
-We optimise for when $y_{kn}$ and $\hat{y}_{kn}$ (the predicted value of $y_{kn}$, using our initial guess of $\beta$ - which represents how mutable each feature is) are similar. A optimisation to do this is shown below, where there are $K$ individuals and $N$ pairwise comparisons and $\ell(y, \hat{y}) = \max[0, 1-y\hat{y}]$ represents the hinge loss.
-
-\begin{equation}
-	\argmin_\beta = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}(\beta)) + \underbrace{\lambda ||\beta||_2}_{\text{L2 regularisation}}
-\end{equation}
-
-This is an unconstrained optimised problem that can be optimised via gradient descent. However, operation in equation \ref{eq:paired_response} is non, differentiable, so instead it is approximated with the below expression, which fits $\hat{y}_n$ into [-1,1] where $\lambda$ is a hyperparameter regularising for 'confidence' of the predictions.
+The model deployer's task is therefore to learn a $\beta$ that which would explain as many of the individuals' responses as possible. We denote the model deployers' predicted response as $\hat{y}_{kn}$, which is defined below, where $\lambda$ is a hyperparameter regularising for 'confidence' of the predictions. As true values $y_{kn} \in \{-1,1\}$, the $\tanh$ function is used to force the predicted values $\hat{y}_{kn}$ into $[-1,1]$.
 
 \begin{equation} \label{eq:yhat_relaxation}
-	\hat{y}_{kn} = \tanh \Bigg(\lambda \Big(c(\mathbf{x}_n, \mathbf{x}^1_{kn}) - c(\mathbf{x}_n, \mathbf{x}^2_{kn})\Big)\Bigg)
+	\hat{y}_{kn} = \tanh \Bigg(\lambda \Big(\cost(\boldsymbol{x}_n, A^1_{kn}|\beta, W) - \cost(\boldsymbol{x}_n, A^1_{kn}|\beta, W)\Big)\Bigg)
 \end{equation}
+
+The model deployer's task can be achieved through the below objective, where there are $K$ individuals and $N$ pairwise comparisons and $\ell(y, \hat{y}) = \max[0, 1-y\hat{y}]$ represents the hinge loss.
+
+\begin{equation}
+	\argmin_\beta = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}) + \underbrace{\lambda ||\beta||_2}_{\text{L2 regularisation}}
+\end{equation}
+
+This is an unconstrained optimised problem that can be optimised using gradient descent. In order to avoid overfitting to responses of the sample of the negatively classified individuals who answer the pairwise comparisons, L2 regularisation is also added to the objective function.
 
 \subsection{Imperfect Knowledge of the Structural Causal Model}
 
-The key difference here is that we do not have perfect knowledge of the causal model, so if users are making decisions based on the true causal model, then we should also learn the parameters of the (assumed linear) structural causal model. Let the linear structural causal model have a \textit{weighted} adjacency matrix $W$. In this case, the optimisation problem is shown below. 
+Now we consider the (more realistic) case where the model deployer does not have perfect knowledge of the structural causal model. In this case, the model deployer learns both the user preferences $\beta$ as well as the parameters of the structural equations $W$. The formula for the predicted responses $\hat{y}_{kn}$ remains unchanged from equation \ref{eq:yhat_relaxation} and we add $W$ in to the objective function as follows.
 
 \begin{equation}
-	\argmin_{\beta, W} = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}(\beta, W)) + \underbrace{\lambda_1 ||\beta||_2 + \lambda_2||W||_2}_{\text{L2 regularisation}}
+	\argmin_{\beta, W} = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}) + \underbrace{\lambda_1 ||\beta||_2 + \lambda_2||W||_2}_{\text{L2 regularisation}}
 \end{equation}
 
-The expression for $y_{kn}$ in equation \ref{eq:paired_response} is still non-convex, so again use the continuous approximation of $\hat{y}_{kn}$ as shown in equation \ref{eq:yhat_relaxation}.
+\subsection{Noisy Responses}
+
+In the two previous set-ups the model deployer learns $\beta$ (and $W$) from the responses of the negatively classified individuals, who have perfect knowledge of $\beta$ and $W$. However, in reality, often responses to such questions can be noisy and it is highly unlikely that individuals actually have perfect knowledge of the SCM. We now relax these two assumptions, first by assuming that individuals knowledge of the SCM up to some noise and second by adding some noise to the response that they report.\\
+
+To add noise to individuals' knowledge of the SCM, we assume that, instead of $W$, each individual's cost function is parameterised by $\tilde{W}$, where $\tilde{W} = W + N(0, \sigma^2_W)$. To add noise to the responses, we add some Gaussian noise with mean 0 and standard deviation $\sigma_R$ to the ratio of the cost of actions $A^1$ to the cost of actions $A^2$. \comment{explain the relevance of having noise with expectation=0}
+
+\begin{align}
+	r & = \frac{\cost(\boldsymbol{x}_n, A^1_{kn} | \beta, \tilde{W})}{\cost(\boldsymbol{x}_n, A^2_{kn} | \beta, \tilde{W})} \\ \nonumber
+	y_{kn} & = \begin{cases}
+			-1 & \text{if } r + N(0, \sigma^2_R) \leq 1 \\
+			+1 & \text{if } r + N(0, \sigma^2_R) > 1 \\
+			\end{cases}
+\end{align}
+
+With these updated noisy responses, the optimisation problem still remains the same from the point of the model deployer. However, given the noisy responses, the role of the regularisation becomes more important.
 
 \section{Cost Function}
-In each of the following subsections, outlining the different cost functions used. Currently have implemented weighted squared costs (weights are feature mutability $\beta$) and log-KDE shift.
+In each of the following subsections, outlining the different cost functions used. Currently have implemented weighted squared costs (weights are feature mutability $\beta$).
 
 \subsection{Weighted Squared Costs}
 
-Let the individual cost function take the below form, where $\beta \in \mathbb{R}^D$ is a vector which expresses the mutability of each feature $i$. The order does not matter in this case, as the cost function only depends on $\delta$, not $\mathbf{x}$ (see Proposition 1).
+Let the individual cost function take the below form, where $\beta \in \mathbb{R}^D$ is a vector which expresses the mutability of each feature $i$. The order of the interventions in $A$ does not matter in this case, as the cost function only depends on $\delta$, not $\boldsymbol{x}$ (see \Cref{sequential_proposition}).
 
 \begin{equation}
 	\texttt{cost}(A, \beta) = \sum_{i=1}^D \beta_i \delta^2_i
 \end{equation}
-
-\subsection{Log KDE Shift}
-
-This is an adaptation of log-percentile shift \citep{ustunActionableRecourseLinear2019}, which is defined below, where $Q_i(\mathbf{x}_i)$ is the (empirical) CDF of $\mathbf{x}_i$. The use of a $\log$ is so that moving from percentile 50 to 55 is easier than moving from percentile 90 to 95.
-
-\begin{equation}
-	\texttt{cost}(\mathbf{x}, A) = \sum_{i=1}^D \beta_i \log (\frac{1 - Q_i(\mathbf{x} + \delta_i)}{1 - Q_i(\mathbf{x})})
-\end{equation}
-
-However, using a CDF lead to instability issues when generating recourse, so I have replaced the CDF with a KDE (kernel density estimate).
-
-\subsection{Mahalanobis Distance}

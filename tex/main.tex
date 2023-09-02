@@ -77,7 +77,7 @@
 % The margins have been set using the geometry package options. I have selected the margins to be as narrow as possible to comply with the guidelines, but this can be changed.
 
 %%% Bibliography packages
-\usepackage[style=authoryear-comp,sorting=nyt,url=true,arxiv=abs,nohashothers=false, backend=biber, natbib=true, backref=true, dashed=false, isbn=false, eprint=false, date=year, maxcitenames=2]{biblatex} % Controls the bibliography style and sorting.
+\usepackage[style=authoryear-comp,sorting=nyt,url=true,arxiv=abs,nohashothers=false, backend=biber, natbib=true, backref=true, dashed=false, isbn=false, eprint=false, date=year, maxcitenames=2, maxbibnames=99, uniquename=false, uniquelist=false]{biblatex} % Controls the bibliography style and sorting.
 
 % Add line between references
 \setlength\bibitemsep{\baselineskip}
@@ -151,6 +151,11 @@
 
 \usepackage{mathtools}
 
+%Referencing
+% Referencing
+\usepackage{cleveref}
+\newtheorem{proposition}{Proposition}
+
 %%% Document development
 \usepackage[color=blue!40, textwidth=25mm]{todonotes}   
                                            % used to annotate the documents and make notes about what needs doing and what doesn't.
@@ -173,6 +178,7 @@
 \DeclareMathOperator*{\argmax}{argmax}
 \DeclareMathOperator*{\argsort}{\texttt{argsort}}
 \DeclareMathOperator*{\softsort}{\texttt{SoftSort}}
+\DeclareMathOperator*{\cost}{\texttt{cost}}
 
 % Section level equation numbering
 \numberwithin{equation}{section}
@@ -181,10 +187,10 @@
 %\pagenumbering{arabic}
 
 % 0a Title
-\include{./sections/title.tex}
+\include{./sections/title}
 
 % 0b Abstract
-\include{./sections/abstract.tex}
+\include{./sections/abstract}
 
 % 0c Table of contents
 {
@@ -198,20 +204,22 @@
 \clearpage
 
 % Introduction
-\include{./sections/introduction.tex}
+\include{./sections/introduction}
 
 % Literature Review
-\include{./sections/literature_review.tex}
+\include{./sections/literature_review}
 
 % Causal Algo Recourse
-\include{./sections/causal_recourse.tex}
-
+\include{./sections/causal_recourse}
 
 % Cost Learning
-\include{./sections/cost_learning.tex}
+\include{./sections/cost_learning}
 
 % Experiments
-\include{./sections/experiments.tex}
+\include{./sections/experiments}
+
+% Conclusion
+\include{./sections/conclusion}
 
 % References
 \printbibliography[title={References}, heading=bibintoc]

@@ -1,2 +1,41 @@
 \chapter{Introduction}
-Introduction chapter.
+
+Picture a scenario where, after renting for the last 10 years, you are in the process of buying your first home. You require a mortgage of £300,000. Your salary is £50,000, you have savings of £40,000 (excluding that saved for the deposit) and a credit score of 800\footnote{Assume that this is an Experian credit score, where a score 800 corresponds to a `fair' score, see more details \href{https://www.experian.co.uk/consumer/experian-credit-score.html}{here}.}. You decide to apply for a mortgage with a new digital bank, which promises to instantly provide a decision, through its `AI-powered system'. After entering all your details online, you press `Submit'. A new screen appears, informing you that your mortgage application has been unsuccessful. However, it also informs you that if you can increase your income to £70,000 and increase your savings to £50,000 , you will be approved for the mortgage. These actions you can take in order for your mortgage to be approved are known as \textit{algorithmic recourse}.\\
+
+Algorithmic or automated decision making systems are widely used in the real world, often in high stakes environments, where they have a significant impact on the lives of individuals. Some examples include credit scoring, where classifiers are widely used to approve loans and mortgages \citep{odwyerAreYouCreditworthy2018}, in criminal justice, to assess the risk of re-offending \citep{angwinMachineBias2016} and hiring, where candidate screening and video interviews are often automated \citep{kramerProblemsAIVideo2022}. Algorithmic recourse refers to a set of actions an individual can take to remedy a negative decision made by an algorithmic or automated decision making system.\comment{cite this} For example, in the mortgage approval case, the recourse provided was to increase income and credit score. In a hiring setting, it may involve increasing educational achievements or work experience.\\
+
+
+Whilst algorithmic decision making is highly prevalent, algorithmic recourse is not as common\comment{cite this}. This is concerning, given that recourse has benefits such as increasing trust in algorithmic systems and aiding individuals' ability to make plans and decisions over time \citep{venkatasubramanianPhilosophicalBasisAlgorithmic2020}. Moreover, algorithmic recourse has been argued to have a legal basis in the EU's General Data Protection Regulation (GDPR), where individuals have a \textit{right to recourse}\comment{check this, not sure if this is true - written in survey paper} \citep{voigtEUGeneralData2017}.\\
+
+Generating algorithmic recourse involves finding a feasible alternative set of actions $\boldsymbol{x}'$ that results in a minimal cost to the individual, subject to a positive outcome from the classifier $h$. Mathematically, we can formulate the algorithmic recourse problem as follows, where $\boldsymbol{x}$ are the individual's original features, the classifier is assumed to be a binary classifier $h: \mathbb{R}^D \to \{0,1\}$ and $\mathcal{F}$ represents the set of feasible features values (e.g, if $x_{\text{RACE}}=$ ``Black'', then $x'_{\text{RACE}}=$ ``White'' is not feasible).
+
+\begin{align}
+	\boldsymbol{x}^* = & \argmin_{\boldsymbol{x}'}  \texttt{cost}(\boldsymbol{x}, \boldsymbol{x}') \\ \nonumber
+	\text{s.t. } & h(\boldsymbol{x}') = 1, \\ \nonumber
+	& \boldsymbol{x}' \in \mathcal{F}
+\end{align}
+
+
+These alternative sets of features are often referred to as \textit{counterfactual explanations} - counterfactual features that would have resulted in a positive or more favourable outcome\footnote{This thesis will focus on binary classification problems where there is a positive outcome and a negative outcome. However, the problem naturally extends to multi-class classification, where there are different counterfactual explanations for each class.}. There have been various different methods proposed to generate counterfactual explanations, which can accommodate different types of classifiers (e.g., linear models, tree-based models, neural networks), which have different feasibility, plausibility and other constraints, which can be used on different types of data (e.g., tabular data, image data) and can be computed using different methods (e.g., gradient descent, integer linear programming, brute force) (see Table 1 in \textcite{karimiSurveyAlgorithmicRecourse2022}).\comment{could more citations here, but survey paper should do fine}\\
+
+One of the key challenges in providing algorithmic recourse is the cost function itself. Given that humans are not able to express their individual costs/preferences mathematically, it a highly non-trivial task to estimate the cost of changing features $\boldsymbol{x}$ to  $\boldsymbol{x}'$\comment{cite and explain why this is}. Estimating the cost function is crucial to providing algorithmic recourse, as without a good understanding of the cost of changing features, the recourse provided could be very costly and difficult to achieve. Again consider the scenario where you have unsuccessfully applied for a mortgage on your first home. Imagine that a highly inaccurate cost function has been used to generate recourse and you have been told to increase your income from £50,000 to £80,000 and to increase your savings from £40,000 to £42,500. This may be highly costly, as it is difficult to obtain a 60\% increase in salary, whilst increasing your savings by £2,500 may be comparatively much easier. Another set of features on the classification boundary, is to increase your income to £65,000 and to increase your savings to £55,000. You would consider the second set of features much less costly to achieve than the first. However, due to the poor estimation of your true cost function, you have been provided with recourse that is difficult to achieve.\\
+
+In this thesis, we highlight two key issues with existing cost functions in the algorithmic recourse literature.
+
+\begin{enumerate}
+	\item A set of actions (e.g, increase income to £70,000, increase savings to £50,000) are typically enacted sequentially, as opposed to simultaneously. Costs should consider the order of these actions, as actions (or \textit{interventions}) have downstream causal effects on other variables. For example, after obatining a raise and increasing your income to £70,000, it now becomes much easier to increase your savings to £50,000. This is addressed in chapter \ref{chapter:causal_recourse}.
+	
+	\item The cost function should take into account user preferences over feature mutability. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort. This is addressed in chapter \ref{chapter:cost_learning}, where a novel human-in-the-loop approach is proposed to learn user preferences.
+\end{enumerate}
+
+
+The structure of the thesis is as follows. Relevant literature is reviewed in chapter \ref{chapter:lit_review}, causal algorithmic recourse and sequential interventions are discussed in chapter \ref{chapter:causal_recourse}, the methodology proposed to learn costs is discussed in chapter \ref{chapter:cost_learning}, results of and discussion of experiments on synthetic data are in chapter \ref{chapter:experiments} and concluding remarks are made in chapter \ref{chapter:conclusion}.
+
+
+
+
+
+
+
+
+

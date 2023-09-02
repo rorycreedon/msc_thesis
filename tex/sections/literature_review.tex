@@ -2,65 +2,63 @@
 
 \section{Algorithmic Recourse}
 
-\subsection{Motivation}
-Description of what algorithmic recourse is and why it is important - use of automatic decision making, GDPR \citep{voigtEUGeneralData2017}. Mention psychological factors causing humans to prefer recourse to explanations (\textbf{to find paper(s)}: was mentioned by Ruth Byrne in \href{https://icml.cc/virtual/2021/11705}{ICML panel session}, from 25 minutes onwards).
+Algorithmic recourse was first defined in the machine learning literature as ``the ability of a person to obtain a desired outcome from a fixed model'' \citep{ustunActionableRecourseLinear2019}. In our example from the introduction, where you are declined a mortgage, the digital bank provides recourse in the form of an alternative set of features (also referred to in the literature as `flipsets'). Should you change your features to the alternative set of features (where your income is £70,000 and savings are £40,000), then the mortgage will be approved (a positive outcome). In this example, the digital bank's mortgage approval classifier is fixed - the alternative set of features will not result in the mortgage being declined again when you re-apply.
 
 
-\subsection{Problem Set-up}
-\begin{itemize}
-	\item Description of the original set-up and problem - i.e., 	
-	\begin{align} \label{eq:recourse_setup}
-		\boldsymbol{\delta}^* = & \argmin_{\boldsymbol{\delta}} c(\mathbf{x}, \boldsymbol{\delta}) \\ \nonumber
-		\text{s.t. } & h(\mathbf{x}') = 1, \\ \nonumber
-		& \mathbf{x}' = \mathbf{x} + \boldsymbol{\delta}, \\ \nonumber
-		& \boldsymbol{\delta} \in \mathcal{F}
-	\end{align} 
-	
-	\item Description of the causal recourse set-up and problem \citep{karimiAlgorithmicRecourseCounterfactual2021}
-	\item Cost and distance functions, actionability of features
-\end{itemize}
+\subsection{Problem Formulation}
+The algorithmic recourse problem can be defined formally as shown in equation \ref{eq:recourse_setup}, where an individuals' original features are $\boldsymbol{x}$, $h: \mathbb{R}^D \to \{0,1\}$ is the classifier and $\mathcal{F}$ is the set of feasible features values. The set of feasible feature values constrains $\boldsymbol{x}'$ by only allowing positive/integer/similar constraints values of $\boldsymbol{x}'_i$ where relevant (e.g, number of credit cards must be either 0 or a positive integer, credit score must be between 0 and 999\footnote{Experian credit scores run from 0-999, see link \href{https://www.experian.co.uk/consumer/experian-credit-score.html}{here}.}). For \textit{immutable} variables (e.g., race, birthplace, etc.) it must be that the new feature value is the same as the original, that is $\boldsymbol{x}_i=\boldsymbol{x}'_i$.
 
+\begin{align} \label{eq:recourse_setup}
+	\boldsymbol{x}^* = & \argmin_{\boldsymbol{x}'}  \cost(\boldsymbol{x}, \boldsymbol{x}') \\ \nonumber
+	\text{s.t. } & h(\boldsymbol{x}') = 1, \\ \nonumber
+	& \boldsymbol{x}' \in \mathcal{F}
+\end{align}
+
+\subsection{Cost Functions}
+
+Typically, the cost function is either of the form $L_p(\boldsymbol{x}'-\boldsymbol{x}')$, with the $L_1$ and $L_2$ norm being the most common \citep{ramakrishnanSynthesizingActionSequences2020, karimiSurveyAlgorithmicRecourse2022}. For the $L_1$ and $L_2$ norms, this cost function is always greater than or equal to 0, and is minimised when $\boldsymbol{x} =\boldsymbol{x}'$. The further away from the original features $\boldsymbol{x}$ that the counterfactual values $\boldsymbol{x}'$ are, the higher the cost. Intuitively, this means that leaving the features unchanged will result in a cost of 0, whilst significant changes (either positive or negative) will occur a cost that increases with the size of the changes.\\
+
+Another function prevalent in the algorithmic recourse literature is the total log percentile shift \citep{ustunActionableRecourseLinear2019}, shown in equation \ref{eq:total_log_percentile_shift}, where $D$ is the number of features and $Q_i$ represents the CDF of $\boldsymbol{x}_i$. This cost function also considers the cost of each feature changed independently. It punishes increasing from the percentile $Q_i(\boldsymbol{x}'_i)$ is larger than the original percentile $Q_i(\boldsymbol{x}_i)$. A key advantage of this cost function is that changes become harder when starting from a higher percentile, e.g, moving from the 50$^{\text{th}}$ to 55$^{\text{th}}$ percentile carries a cost of 0.105, where as moving from the 90$^{\text{th}}$ to 95$^{\text{th}}$ percentile carries a cost of 0.693. This is likely to reflect reality more than the same cost for increasing percentile by 5 percentage points. Whilst the cost is 0 when $\boldsymbol{x}_i = \boldsymbol{x}'_i$, it becomes negative when $Q_i(\boldsymbol{x}'_i) < Q_i(\boldsymbol{x}_i)$. Therefore, for this cost function to applied correctly, it requires a monotonic constraint (e.g. increasing income is positively associated with credit score)\comment{improve this}.
+
+\begin{equation} \label{eq:total_log_percentile_shift}
+	\cost(\boldsymbol{x}, \boldsymbol{x}') = \sum_{i=1}^D \log \bigg( \frac{1 - Q_i(\boldsymbol{x}_i)}{1 - Q_i(\boldsymbol{x}_i')} \bigg)
+\end{equation}
+
+A related branch of literature, \textit{strategic classification} studies the effect of the behaviour of strategic agents on classifiers. Individuals strategically manipulate their features in order to gain a favourable outcome, as opposed to increasing the underlying variable being classified, for example `credit-worthiness' in a credit scoring setting or practical skills relevant to a specific job in the hiring setting. Designing strategy-robust classifiers or classifiers that incentivise improvement requires a cost function of changing features from $\boldsymbol{x}$ to $\boldsymbol{x}'$. Whilst the  $L_1$ and $L_2$ norms are prevalent in the strategic classification literature, \textcite{bechavodInformationDiscrepancyStrategic2022} also consider the Mahalanobis distance. A Mahalanobis distance (or quadratic form) cost function is shown in equation \ref{eq:mahalanobis_distance}, where $\boldsymbol{M}$ is a positive semi-definite matrix. 
+
+\begin{equation} \label{eq:mahalanobis_distance}
+	\texttt{cost}(\boldsymbol{x}, \boldsymbol{x}') = (\boldsymbol{x} -\boldsymbol{x}')^T\boldsymbol{M}(\boldsymbol{x} - \boldsymbol{x}')
+\end{equation}
+
+As well as allowing for different relative costs of changing features independently (along the diagonal), a Mahalanobis-based cost function allows changing the value of one feature to change the cost of changing another feature. A worked example is shown below. Let $\boldsymbol{x} = [2,3,4]^T$ and $\boldsymbol{x}' = [1,1,1]^T$. First, note that $(\boldsymbol{x} -\boldsymbol{x}')^T\boldsymbol{M}(\boldsymbol{x} - \boldsymbol{x}') = (\boldsymbol{x} -\boldsymbol{x}')^2$ if $\boldsymbol{M}$ is the identity matrix. If the values along the diagonal of $\boldsymbol{M}$ were different, this would encode different costs for changing each feature.
+
+\begin{equation}
+	[1, 2, 3]^T \left[\begin{array}{lllll}
+		1 & 0 & 0 \\
+		0 & 1 & 0 \\
+		0 & 0 & 1
+	\end{array}\right] [1, 2, 3]^T = 1^2 + 2^2 + 3^2 = 14
+\end{equation}
+
+When the diagonals are non-zero, this results changing one feature affects the cost of changing another feature. See the below example, where changing $\boldsymbol{x}_1$ leads to an increased cost in changing $\boldsymbol{x}_2$.
+
+\begin{equation}
+	[1, 2, 3]^T \left[\begin{array}{lllll}
+		1 & 0 & 0 \\
+		0.5 & 1 & 0 \\
+		0 & 0 & 1
+	\end{array}\right] [1, 2, 3]^T = 1^2 + 2.5(2) + 3^2 = 15
+\end{equation}
+
+The matrix $\boldsymbol{M}$ must be manually specified, meaning that the principal (the provide of recourse) must estimate $M$ before providing recourse. \comment{explain how this is correlative, not causal}
+
+[\textbf{TO CONSIDER WHICH OF THE BELOW ACTUALLY NEEDS TO GO IN THE LIT REVIEW}]
 
 \subsection{Recourse methods}
 Run through methods mentioned in survey paper \citep{karimiSurveyAlgorithmicRecourse2022} and also those implemented in \href{https://carla-counterfactual-and-recourse-library.readthedocs.io/en/latest/recourse.html}{\texttt{CARLA}}.
 
 
-
-
-
-\section{Strategic Classification}
-
-\subsection{Standard Strategic Classification}
-
-
-\begin{itemize}
-	\item Begin with \textcite{hardtStrategicClassification2016} and explain the set-up as a Stackelberg game with an example.
-	
-	\item Algorithms proposed for this task include  \textcite{levanonStrategicClassificationMade2021}, \textcite{chenLearningStrategyAwareLinear2020} and \textcite{ahmadiClassificationStrategicAgents2022}. 
-	
-	\item Mention extensions such as:
-	
-	\item Where the cost function is completely unknown to the lender \citep{dongStrategicClassificationRevealed2018}
-	
-	\item Where the response of lenders to the classifier is noisy \citep{jagadeesanAlternativeMicrofoundationsStrategic2021}.
-	
-	\item Where borrowers do not know the decision rule \citep{ghalmeStrategicClassificationDark2021, bechavodInformationDiscrepancyStrategic2022}.
-	
-	\item Where the incentives of lender and borrower align (e.g., recommender systems) \citep{levanonGeneralizedStrategicClassification2022}.
-	
-	\item Where the cost functions are linked by graphs for the borrowers \citep{eilatStrategicClassificationGraph2023}.
-	
-	\item Where the borrowers act first \citep{nairStrategicRepresentation2022}.
-	
-	\item Where the borrowers and lenders update at different rates \citep{zrnicWhoLeadsWho2021}.
-\end{itemize}
-
-\subsection{Causal Strategic Classification}
-A review of the \textit{causal} strategic classification literature, which focuses more on causal identification of features which are strategically manipulated (without causing an improvement in underlying credit `worthiness') and features which causally affect credit `worthiness'.
-
-
-
-\section{Revealed Preferences} \label{section:revealed_pref_lit}
+\section{Learning from Revealed Preferences} \label{section:revealed_pref_lit}
 A brief primer on axioms of revealed preferences, and on the literature of \textit{learning from revealed preferences}. To briefly discuss:
 
 \begin{itemize}
@@ -68,24 +66,6 @@ A brief primer on axioms of revealed preferences, and on the literature of \text
 	\item When prices are of goods and budget of the agent are drawn from an unknown distribution \citep{zadimoghaddamEfficientlyLearningRevealed2012, balcanLearningEconomicParameters2014}.
 	\item Where the principal is maximising profit \citep{aminOnlineLearningProfit2015, rothWatchLearnOptimizing2016}.
 	\item Move onto a more detailed discussion of \textcite{dongStrategicClassificationRevealed2018}.
-\end{itemize}
-
-
-\section{Pairwise Metric Learning}
-\begin{itemize}
-	\item Start with an introduction of what pairwise metric learning is and key papers.
-	\item Move onto specific proposed adaptation/simplification of the learning algorithm proposed in \textcite{canalOneAllSimultaneous2022}.
-\end{itemize}
-
-
-\section{Canonical Datasets}
-The canonical datasets used in the algorithmic recourse and strategic classification literature include:
-
-\begin{itemize}
-	\item \href{https://archive.ics.uci.edu/dataset/2/adult}{\texttt{Adult}} - dataset to predict whether someone earns over \$50,000 or more.
-	\item \href{https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data}{\texttt{German Credit}} - dataset identifies people as either good or bad credit risks.
-	\item \href{https://community.fico.com/s/explainable-machine-learning-challenge}{\texttt{FICO-HELOC}} - dataset of HELOC applications, where applicants have applied for a credit line between \$5,000 and \$150,000. Outcome variable is whether they are a good or bad credit risk.
-	\item \href{https://www.kaggle.com/datasets/shebrahimi/financial-distress}{\texttt{Finance}} - dataset to predict financial distress for a number of companies. There are several over different time periods for each company.
 \end{itemize}
 
 

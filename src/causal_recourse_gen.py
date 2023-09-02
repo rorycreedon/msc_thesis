@@ -8,53 +8,8 @@ from typing import Union
 import wandb
 import argparse
 
+from softsort import SoftSort
 from kde import GaussianKDE
-
-
-class SoftSort(nn.Module):
-    """
-    Code used from paper "SoftSort: A Continuous Relaxation for the argsort Operator" (Prillo and Eisenschlos, 2020)
-    Source: https://github.com/sprillo/softsort/blob/master/pytorch/softsort.py
-    """
-
-    def __init__(
-        self,
-        tau: float = 1.0,
-        hard: bool = False,
-        power: float = 1.0,
-        device: str = "cpu",
-    ):
-        """
-        Initialize the class
-        :param tau: temperature parameter
-        :param hard: whether to use soft or hard sorting
-        :param power: power to use in the semi-metric d
-        :param device: device to use
-        """
-        super(SoftSort, self).__init__()
-        self.hard = hard
-        self.tau = tau
-        self.power = power
-        self.device = device
-
-    def forward(self, scores: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the class
-        :param scores: The scores to be sorted
-        :return: The softmax of sorted scores (descending sort)
-        """
-        scores = scores.unsqueeze(-1)
-        sorted = scores.sort(descending=False, dim=1)[0]
-        pairwise_diff = (scores.transpose(1, 2) - sorted).abs().pow(
-            self.power
-        ).neg() / self.tau
-        P_hat = pairwise_diff.softmax(-1)
-
-        if self.hard:
-            P = torch.zeros_like(P_hat, device=self.device)
-            P.scatter_(-1, P_hat.topk(1, -1)[1], value=1)
-            P_hat = (P - P_hat).detach() + P_hat
-        return P_hat
 
 
 class CausalRecourseGenerator:
@@ -73,7 +28,6 @@ class CausalRecourseGenerator:
         super(CausalRecourseGenerator, self).__init__()
         # Device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using: {self.device}")
 
         self.learn_ordering = learn_ordering
         if self.learn_ordering is True:
@@ -259,6 +213,7 @@ class CausalRecourseGenerator:
     def recover_interventions(self, A: torch.Tensor, O: torch.Tensor):
         """
         Recover the interventions from A and O
+        THIS WORKS ON THE ASSUMPTION THAT WE HAVE PERFECT KNOWLEDGE OF THE ADJACENCY MATRIX.s
         :param A: The actions to take for each variable (after downstream interventions)
         :param O: The ordering of the features
         :return:
@@ -313,6 +268,9 @@ class CausalRecourseGenerator:
         :param cost_function: The cost function to use
         :return: X_prime: the updated feature values after recourse, O: the ordering of actions, A: the actions, cost: the cost of recourse, prob: the probability of positive classification
         """
+        vprint = print if verbose else lambda *a, **k: None
+        vprint(f"Using: {self.device}")
+
         # Check positive classifier margin
         assert (
             classifier_margin >= 0
@@ -402,7 +360,7 @@ class CausalRecourseGenerator:
                 break
 
             if epoch % 100 == 0 and verbose:
-                print(
+                vprint(
                     f"Epoch {epoch} | Objective: {objective_list[-1]} | Constraint: {constraint_list[-1]}"
                 )
 

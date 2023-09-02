@@ -1,51 +1,112 @@
-\chapter{Experiments}
+\chapter{Experiments} \label{chapter:experiments}
 
-\section{Synthetic data}
-
-The experiments that follow use synthetic data generated from a structural causal model, which is shown in Figure \ref{fig:scm} \todo[size=\small]{To simplify, removing $x_4$, $y$ and $\hat{y}$.}.
+The end-to-end workflow is as follows:
 
 \begin{figure}[!htb]
 	\centering
-	\includegraphics[width=0.4\linewidth]{images/scm.png}
-	\caption{The Structural Causal Model used for synthetic data generation}
-	\label{fig:scm}
+	\includegraphics[width=\linewidth]{images/draw.io/workflow.png}
+	\caption{Workflow diagram}
+	\label{fig:workflow}
 \end{figure}
 
-The structural causal model contains 2 unobserved variables
-\begin{itemize}
-	\item $\mathbf{u}$ - which is sampled from a normal distribution
-	\item $\mathbf{y}$ - the true binary outcome which is a linear combination of $\mathbf{u}$ and $\mathbf{x}_2$
-\end{itemize}
 
-And 4 observed variables
-\begin{itemize}
-	\item $\mathbf{x}_1$ - which is sampled from a normal distribution
-	\item $\mathbf{x}_2,\mathbf{x}_3,\mathbf{x}_4$ - which are linear combinations of other variables
-	\item $\hat{\mathbf{y}}$ - The predicted value of $\mathbf{y}$
-\end{itemize}
+\section{Simple synthetic data setting}
+
+In a simple synthetic data setting, data is generated from the below SCM.
+
+\begin{align}
+	x_1 & = u_1 & u_1 \sim N(0,1) \\ \nonumber
+	x_2 & = 0.5x_1 + u_2 & u_2 \sim N(0,1) \\ \nonumber
+	x_3 & = 0.2x_1 + 0.3x_2 + u_3 & u_3 \sim N(0,0.5) \\ \nonumber
+	y   & \sim \text{Bernoulli}(\sigma(0.1x_1 + 0.2x_2 + 0.3x_3))
+\end{align}
+
+Ground truth $\beta$: [0.5, 0.333, 0.1667]
 
 
-\section{Simulation process}
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=0.4\linewidth]{images/draw.io/toy_scm.png}
+	\caption{Simple SCM}
+	\label{fig:simple_scm}
+\end{figure}
 
-[\textbf{TO CONVERT TO AN ALGORITHM/PSEUDOCODE}]
 
-The process for simulation is as follows. We assume that the individuals do \textit{not} have any knowledge of the classifier.
+\subsection{Noiseless responses with perfect knowledge of the causal graph}.
 
-1. Split the data into test and train sets.
+Ground truth $\beta$: [0.5, 0.333, 0.1667] \\
+Learned $\beta$ : [0.4965, 0.3355, 0.1681]
 
-2. Fit a classifier using just the train set and measure accuracy against the *true* labels.
+\subsection{Noiseless responses with imperfect knowledge of the causal graph}
 
-3. Predict labels for \textit{all} data points (both train and test)
+Ground truth $\beta$: [0.5, 0.333, 0.1667] \\
+Learned $\beta$ : [0.4975, 0.3354, 0.1671]
 
-4. Calculate recourse actions for all negatively classified data points, by minimising the current approximation of the cost function.
+Ground truth $W$: $\begin{bmatrix}
+	0 & 0.5 & 0.2 \\
+	0 & 0 & 0.3 \\
+	0 & 0 & 0
+\end{bmatrix}$
 
-5. Perturb the recourse actions to create pairwise comparisons for the negatively classified individuals to evaluate.
+Learned $W$: $\begin{bmatrix}
+	0 & 0.4864 & 0.2136 \\
+	0.0033 & 0 & 0.3221 \\
+	0.0008 & 0.0086 & 0
+\end{bmatrix}$
 
-6. Learn cost function from evaluated pairwise comparisons from \textit{all} previous iterations.
 
-7. Generate updated recourse with the current approximation of the cost function.
+\subsection{Noisy responses}
 
-8. Calculate the 'ground truth cost' of the recourse with learned cost.
+So far, only noisy responses have been added (not noise knowledge of the causal graph)
 
-\section{Mahalanobis distance}
+\textbf{With noise distribution $N(0, 0.1)$:}
 
+Ground truth $\beta$: [0.5, 0.333, 0.1667] \\
+Learned $\beta$ : [0.4917, 0.3418, 0.1665]
+
+Ground truth $W$: $\begin{bmatrix}
+	0 & 0.5 & 0.2 \\
+	0 & 0 & 0.3 \\
+	0 & 0 & 0
+\end{bmatrix}$
+
+Learned $W$: $\begin{bmatrix}
+	0 & 0.5424 & 0.1683 \\
+	-0.0070 & 0 & 0.3950 \\
+	0.0166 & -0.0007 & 0
+\end{bmatrix}$
+
+
+\textbf{With noise distribution $N(0, 0.5)$:}
+
+Ground truth $\beta$: [0.5, 0.333, 0.1667] \\
+Learned $\beta$ : [0.4224, 0.3686, 0.2090]
+
+Ground truth $W$: $\begin{bmatrix}
+	0 & 0.5 & 0.2 \\
+	0 & 0 & 0.3 \\
+	0 & 0 & 0
+\end{bmatrix}$
+
+Learned $W$: $\begin{bmatrix}
+	0 & 0.5772 & 0.3522 \\
+	-0.0062 & 0 & 0.1657 \\
+	0.0974 & 0.0459 & 0
+\end{bmatrix}$
+
+\textbf{With noise distribution $N(0, 2)$:}
+
+Ground truth $\beta$: [0.5, 0.333, 0.1667] \\
+Learned $\beta$ : [0.4958, 0.2685, 0.2357]
+
+Ground truth $W$: $\begin{bmatrix}
+	0 & 0.5 & 0.2 \\
+	0 & 0 & 0.3 \\
+	0 & 0 & 0
+\end{bmatrix}$
+
+Learned $W$: $\begin{bmatrix}
+	0 & 0.5353 & 0.08712 \\
+	-0.1487 & 0 & 0.7206 \\
+	-0.2152 & 0.2409 & 0
+\end{bmatrix}$

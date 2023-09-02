@@ -30,9 +30,45 @@ class BetaLearner(CausalRecourseGenerator):
         self.sampled_betas = None
 
         # Outcomes, ordering and actions
+        self.true_outcomes = None
         self.outcomes = None
         self.ordering = None
         self.actions = None
+
+    def eval_random_actions(self, eval_noise: float = 0, W_noise: float = 0) -> None:
+        """
+        Generate random actions for the pairwise comparisons
+        :return: None
+        """
+        self.actions = torch.rand(
+            2, self.n_comparisons, self.X.shape[0], self.X.shape[1], dtype=torch.float64
+        )
+        N, D = self.X.shape
+        self.ordering = torch.empty(2, self.n_comparisons, N, D, dtype=torch.long)
+        # Fill the tensor with random permutations
+        for i in range(2):
+            for j in range(self.n_comparisons):
+                self.ordering[i, j] = torch.multinomial(
+                    torch.ones(N, D) / D, D, replacement=False
+                )
+
+        costs = torch.zeros(2, self.n_comparisons, self.X.shape[0])
+
+        for i in range(self.actions.shape[0]):
+            for j in range(self.actions.shape[1]):
+                costs[i, j] = self.eval_actions_new_non_diff(
+                    X=self.X.to("cpu"),
+                    W_adjacency=self.ground_truth_W,
+                    ordering=self.ordering[i, j],
+                    beta=self.ground_truth_beta,
+                    actions=self.actions[i, j],
+                    W_noise=W_noise,
+                )
+
+        ratio = costs[0] / costs[1]
+        ratio += torch.normal(0, eval_noise, size=ratio.shape)
+        self.outcomes = torch.where(ratio < 1, -1, 1)
+        self.true_outcomes = torch.where(costs[0] - costs[1] < 0, -1, 1)
 
     def gen_pairwise_comparisons(self) -> None:
         """
@@ -70,7 +106,7 @@ class BetaLearner(CausalRecourseGenerator):
 
     @staticmethod
     def eval_actions_new_non_diff(
-        X, actions, ordering, W_adjacency, beta
+        X, actions, ordering, W_adjacency, beta, W_noise=0
     ) -> torch.Tensor:
         """
         Evaluate the actions in the pairwise comparisons
@@ -85,7 +121,16 @@ class BetaLearner(CausalRecourseGenerator):
             S = ordering.to(int)
         actions_ordered = torch.gather(actions, 1, S)
         costs = torch.zeros(X.shape[0])
-        W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
+
+        # Add noise to W
+        N, D = X.shape
+        W_repeated = (W_adjacency + torch.eye(D)).repeat(N, 1, 1)
+        added_noise = W_noise * torch.randn(N, D, D)
+        mask = torch.eye(D).repeat(N, 1, 1)
+        W_noisy = W_repeated + (
+            added_noise * (1 - mask)
+        )  # ensuring no noise on diagonals
+        # W_temp = W_adjacency + torch.eye(W_adjacency.shape[0])
 
         for i in range(W_adjacency.shape[0]):
             costs += (
@@ -96,12 +141,14 @@ class BetaLearner(CausalRecourseGenerator):
                 )
                 ** 2
             )
-            X_bar += W_temp[S[:, i]] * actions_ordered[:, i].unsqueeze(-1)
+            X_bar += W_noisy[torch.arange(N), S[:, i]] * actions_ordered[
+                :, i
+            ].unsqueeze(-1)
 
         return costs
 
     @staticmethod
-    def eval_actions_new_diff(X, actions, ordering, W_adjacency, sorter):
+    def eval_actions_new_diff(X, actions, ordering, W_adjacency, sorter, beta):
         # Init result tensors
         X_bar = X.clone()
         S = sorter(ordering)
@@ -237,7 +284,7 @@ class BetaLearner(CausalRecourseGenerator):
                     self.ordering[i, j] = order
                     self.actions[i, j] = action.detach()
                     costs[i, j] = self.eval_actions_new_non_diff(
-                        X=self.X,
+                        X=self.X.to("cpu"),
                         W_adjacency=self.ground_truth_W,
                         ordering=order,
                         beta=self.ground_truth_beta,
@@ -389,6 +436,8 @@ class BetaLearner(CausalRecourseGenerator):
         :param verbose: Whether to print progress
         :return: Learned beta
         """
+        vprint = print if verbose else lambda *a, **k: None
+
         # Initialise parameters
         learned_beta = torch.ones(
             self.X.shape[1], dtype=torch.float64, requires_grad=True
@@ -415,7 +464,39 @@ class BetaLearner(CausalRecourseGenerator):
 
         loss_list = []
 
-        print("Learning beta...")
+        if verbose:
+            # figure out how many costs were correctly predicted
+            costs_0 = torch.stack(
+                [
+                    self.eval_actions_new_non_diff(
+                        X=self.X,
+                        W_adjacency=learned_W,
+                        ordering=self.ordering[0][i],
+                        beta=learned_beta,
+                        actions=self.actions[0][i],
+                    )
+                    for i in range(self.n_comparisons)
+                ]
+            )
+
+            costs_1 = torch.stack(
+                [
+                    self.eval_actions_new_non_diff(
+                        X=self.X,
+                        W_adjacency=learned_W,
+                        ordering=self.ordering[1][i],
+                        beta=learned_beta,
+                        actions=self.actions[1][i],
+                    )
+                    for i in range(self.n_comparisons)
+                ]
+            )
+            pred_outcomes = torch.where(costs_0 - costs_1 < 0, -1, 1)
+            vprint(
+                f"Initial Accuracy: {torch.sum(pred_outcomes == self.outcomes) / (self.outcomes.shape[0] * self.outcomes.shape[1])}"
+            )
+
+        vprint("Learning beta...")
 
         # Training loop
         for epoch in range(max_epochs):
@@ -427,7 +508,7 @@ class BetaLearner(CausalRecourseGenerator):
 
             if self.W_known is False:
                 # add a mask to gre gradients so gradients are fixed at 0 for diagonal elements
-                mask = torch.eye(learned_W.shape[0])
+                mask = 1 - torch.eye(learned_W.shape[0])
                 learned_W.grad *= mask
 
             optimizer.step()
@@ -439,22 +520,53 @@ class BetaLearner(CausalRecourseGenerator):
             # Track losses
             loss_list.append(loss.item())
             if verbose and epoch % 500 == 0:
-                print(f"Epoch {epoch} | Loss {loss.item()}")
+                vprint(f"Epoch {epoch} | Loss {loss.item()}")
             # Early stopping
-            if np.std(loss_list[-10:]) < 1e-6 and epoch > 100:
+            if np.std(loss_list[-15:]) < 1e-6 and epoch > 100:
                 if verbose:
-                    print(f"Converged at epoch {epoch}")
+                    vprint(f"Converged at epoch {epoch}")
                 break
 
         if verbose:
-            print(f"Learned beta: {learned_beta.detach()}")
-            print(f"Ground truth beta: {self.ground_truth_beta}\n")
+            # figure out how many costs were correctly predicted
+            costs_0 = torch.stack(
+                [
+                    self.eval_actions_new_non_diff(
+                        X=self.X,
+                        W_adjacency=learned_W,
+                        ordering=self.ordering[0][i],
+                        beta=learned_beta,
+                        actions=self.actions[0][i],
+                    )
+                    for i in range(self.n_comparisons)
+                ]
+            )
+
+            costs_1 = torch.stack(
+                [
+                    self.eval_actions_new_non_diff(
+                        X=self.X,
+                        W_adjacency=learned_W,
+                        ordering=self.ordering[1][i],
+                        beta=learned_beta,
+                        actions=self.actions[1][i],
+                    )
+                    for i in range(self.n_comparisons)
+                ]
+            )
+            pred_outcomes = torch.where(costs_0 - costs_1 < 0, -1, 1)
+            vprint(
+                f"Accuracy: {torch.sum(pred_outcomes == self.outcomes) / (self.outcomes.shape[0] * self.outcomes.shape[1])}"
+            )
+
+            vprint(f"Learned beta: {learned_beta.detach()}")
+            vprint(f"Ground truth beta: {self.ground_truth_beta}\n")
 
             # if self.W_known:
-            print(f"Learned W: {learned_W.detach()}")
-            print(f"Ground truth W: {self.ground_truth_W}\n")
+            vprint(f"Learned W: {learned_W.detach()}")
+            vprint(f"Ground truth W: {self.ground_truth_W}\n")
 
-        return learned_beta.detach(), loss_list
+        return learned_beta.detach(), learned_W.detach(), loss_list
 
 
 if __name__ == "__main__":

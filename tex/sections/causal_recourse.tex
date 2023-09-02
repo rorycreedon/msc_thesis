@@ -1,25 +1,28 @@
 \chapter{Causal Algorithmic Recourse} \label{chapter:causal_recourse}
 
-As discussed in section \ref{chapter:lit_review}, the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ in the strategic classification literature is typically a quadratic cost function of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$\comment{Add citations}, or occasionally an quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.
+As discussed in section \ref{chapter:lit_review}, the cost of changing features from $\boldsymbol{x}$ to $\boldsymbol{x}'$ in the strategic classification literature is typically a quadratic cost function of the form $c(\boldsymbol{x}, \boldsymbol{x}') = (\boldsymbol{x} - \boldsymbol{x}')^2$\comment{Add citations}, or occasionally a quadratic form cost function $c(\boldsymbol{x}, \boldsymbol{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}. \comment{this paragraph needs updating in lieu of re-written literature review}
 
-However, these do not necessarily represent the true complexities of the cost of moving from $\mathbf{x}$ to $\mathbf{x}'$, for a number of (non-exhaustive) reasons. Consider the case of an individual applying for a line of credit.
+However, these do not necessarily represent the true complexities of the cost of moving from $\boldsymbol{x}$ to $\boldsymbol{x}'$, for a number of (non-exhaustive) reasons. Consider the case of an individual applying for a line of credit.
 
 \begin{enumerate}
-	\item \textbf{Changing one feature can change the cost of changing another feature}. If an individual decides not to inquire about a loan for a number of months (which will change the feature ``number of inquiries in the last 6 months'', the cost of decreasing the feature ``number of inquiries in the last 6 months, excluding the last 7 days'' will be very low or zero. However, if a quadratic cost function (or any $L_p$ norm cost function) is used, this will be interpreted as two separate feature changes and the costs of each will be summed. Whilst this simple case can likely be handled by domain expertise, more complex causal relations will exist. Consider an individual obtaining two more credit cards. Whilst this may reduce the cost of increasing ``number of credit cards'', this may also increase the cost of ``monthly credit card payments'' and may have less clear effects (which need not be linear) on other features.
+	\item \textbf{Changing one feature has a causal effect on the cost of changing another feature}. If an individual decides not to inquire about a loan for a number of months (which will change the feature ``number of inquiries in the last 6 months'', the cost of decreasing the feature ``number of inquiries in the last 6 months, excluding the last 7 days'' will be very low or zero. However, if a quadratic cost function (or any $L_p$ norm cost function) is used, this will be interpreted as two separate feature changes and the costs of each will be summed. Whilst this simple case can likely be handled by domain expertise, more complex causal relations will exist. Consider an individual obtaining two more credit cards. Whilst this may reduce the cost of increasing ``number of credit cards'', this may also increase the cost of ``monthly credit card payments'' and may have less clear effects (which need not be linear) on other features. \comment{to add a worked example and reference specific variables in a dataset}
 	
-	\item \textbf{Changing feature costs can be different for different individuals}. For example, increasing the number of credit cards from 1 to 5 may be much easier for someone with a higher income or increasing income from £25,000 to £30,000 may be much easier for someone with a higher level of education. These are all modelled as the same in typical cost functions used in the literature. \comment{To address through clustering, or add in note saying that this is out of scope.}
+	\item \textbf{Changing feature costs can be different for different individuals}. For example, increasing the number of credit cards from 1 to 5 may be much easier for someone with a higher income or increasing income from £25,000 to £30,000 may be much easier for someone with a higher level of education. This is not typically taken into account in the literature.
 \end{enumerate}
+
+This thesis will primarily deal with the first issue, that changing features can have downstream, causal effects on other features. The second issue is out of the scope of this thesis. However, the methodology for estimating cost functions proposed in the thesis could be extended to a setting where individuals are divided in to groups (or clusters), and for each cluster a different cost function is estimated (a similar approach is taken by \textcite{bechavodInformationDiscrepancyStrategic2022}). Whilst this is not quite individualised, it also leads to a cost function being estimated that could be used for other downstream tasks, such as strategic classification.
 
 \section{Structural Causal Models}
 
-To address the first issue, that changing one feature can change the cost of changing another feature, we must model the effect of changing the feature $\mathbf{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\mathbf{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}.
+To address the first issue, that changing one feature has a causal effect on the cost of changing another feature, we must model the effect of changing the feature $\boldsymbol{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\boldsymbol{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}.
 
-We can illustrate a simple SCM with a four variable SCM $\mathcal{M}$ with $\mathbb{U} = \{x_1\}$, $\mathbb{V} = \{x_2, y\}$ and structural equations $\mathbb{F}$ are defined in equation \ref{eq:toy_structural_equations}, where $\sigma$ is the sigmoid function. 
+We can illustrate a simple SCM $\mathcal{M}$ with $\mathbb{U} = \{x_1\}$, $\mathbb{V} = \{x_2, x_3, x_4\}$ and structural equations $\mathbb{F}$ are defined in equation \ref{eq:toy_structural_equations}.
 
 \begin{align} \label{eq:toy_structural_equations}
-	x_1 & = u_1; \;\;\;\; u_1 \sim N(30 , 5) \\ \nonumber
-	x_2 & = u_2 + 0.5x_1; \;\;\;\; u_2 \sim N(20, 10) \\ \nonumber
-	y & = \sigma \bigg(x_1 + x_2 - 60\bigg) \nonumber
+	x_1 & = u_1 & u_1 \sim N(30 , 5) \\ \nonumber %income
+	x_2 & = u_2 + 0.5x_1 & u_2 \sim N(20, 10) \\ \nonumber %savings
+	x_3 & = u_3 - 0.25x_2 & u_3 \sim \text{Uniform}(0, 20) \\ \nonumber %debt
+	x_4 & = \frac{x_3}{x_1} %debt to income ratio
 \end{align}
 
 
@@ -31,62 +34,72 @@ We can illustrate a simple SCM with a four variable SCM $\mathcal{M}$ with $\mat
 \end{figure}
 
 
-The SCM can also be presented with a causal graph $\mathcal{G}$, which is shown in Figure \ref{fig:toy_scm}. Let $x_1$ represent salary, $x_2$ represent savings and $y$ represent the probability of individual being approved for a mortgage. If an individual for whom the SCM $\mathcal{M}$ holds receives an increase in salary, this will lead to an increase in savings, and both the increase in savings and income will increase the probability of mortgage approval. If the individual's initial features were [£30,000, £25,000]$^T$ and their salary increases to £35,000, then it should then be easier to increase their savings than when their salary was £30,000. This toy example shows how the SCM $\mathcal{M}$ encodes the downstream effect of increased salary on both savings and probability of mortgage approval.
+The SCM can also be presented with a causal graph $\mathcal{G}$, which is shown in Figure \ref{fig:toy_scm}. Let $x_1$ represent salary (in thousands of pounds), $x_2$ represent savings (in thousands of pounds), $x_3$ represent the debt (in thousands of pounds) and $x_4$ represent debt-to-income ratio. If an individual for whom the SCM $\mathcal{M}$ holds receives an increase in salary, this will lead to an increase in savings and a reduction the debt-to-income ratio. If the individual's initial features were [£30,000, £25,000, £10,000, 1/3]$^T$ and their salary increases to £35,000, then it should then be easier to increase their savings and decrease their debt-to-income ratio than when their salary was £30,000. This toy example shows how the SCM $\mathcal{M}$ encodes the downstream effect of increased salary on both savings and probability of mortgage approval.
 
-We can use the Abduction-Action-Prediction steps \citep{pearl2016causal} to obtain a \textit{structural counterfactual} of an increase in salary ($x_1$) from £30,000 to £35,000, given that the existing features are [£30,000, £25,000, 0.27]$^T$
+[\textbf{DISCUSSION ON PEARL-STYLE DAGS/INBENS CRITIQUE}]
+
+We can use the Abduction-Action-Prediction steps \citep{pearl2016causal} to obtain a \textit{structural counterfactual} of an increase in salary ($x_1$) from £30,000 to £35,000, given that the existing features are [£30,000, £25,000, £10,000, 1/3]$^T$ \comment{go over this example again, should be such that the hard intervention actually leads to the severing of an edge to illustrate the point on hard interventions}
 
 \textbf{1. Abduction}. Calculate the value of exogenous variables before intervention, given the evidence (the current values of the features).
 
 \begin{align}
-	u_1 & = x_1 = 30,000 \\ \nonumber
-	u_2 & = x_2 - 0.5x_1 = 25,000 - 0.5(30,00) = 10,000 \\ \nonumber
-	u_3 & = 0
+	u_1 & = x_1 & =  30,000 \\ \nonumber
+	u_2 & = x_2 - 0.5x_1 = 25,000 - 0.5(30,00) & = 10,000 \\ \nonumber
+	u_3 & = x_3 + 0.25x_2 = 10,000 + 0.25(25,000) & = 16,250
 \end{align}
 
-\textbf{2. Action}. Modify the model $\mathcal{M}$ by implementing the intervention on $x_1$ (i.e\., $do(x_1=35,000)$). This leads to a new SCM $M_1$ where all incoming edges to the intervened upon variable $x_1$ are severed and the value of the intervened upon variable $x_1$ is set to the intervention value £35,000. In this case, there are no incoming edges to $x_1$, so $\mathcal{M} = \mathcal{M}_1$.
+\textbf{2. Action}. Modify the model $\mathcal{M}$ by implementing the intervention on $x_1$ (i.e\., $do(x_2=30,000)$). This leads to a new SCM $\mathcal{M}_1$ where all incoming edges to the intervened upon variable $x_2$ are severed and the value of the intervened upon variable $x_2$ is set to the intervention value £30,000. The resulting SCM $\mathcal{M}_1$ is shown in Figure \ref{fig:toy_scm_severed}, with structural equations $\mathcal{F}_1$.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=0.6\linewidth]{images/draw.io/Simple SCM Severed.png}
+	\caption{Causal graph $\mathcal{G}$ of SCM $\mathcal{M}_1$.}
+	\label{fig:toy_scm_severed}
+\end{figure}
 
 \begin{align}
-	x_1 & = 35,000 \\ \nonumber
-	x_2 & = u_2 - 0.5x_1 \\ \nonumber
-	x_3 & = \sigma \bigg(\frac{x_1 + x_2 - 60,000}{10,000} \bigg) \nonumber
+	x_1 & = u_1 \\ \nonumber
+	x_2 & = 30,000 \\ \nonumber
+	x_3 & = u_3 - 0.25x_2 \\ \nonumber %debt
+	x_4 & = \frac{x_3}{x_1} %debt to income ratio
 \end{align}
 
 \textbf{3. Prediction}. Using the updated model $\mathcal{M}_1$ and values of exogenous variables $\mathbf{u}$, calculate the values of the endogenous variables.
 
 \begin{align}
-	x^{\text{SCF}}_1 & = 35,000 \\ \nonumber
-	x^{\text{SCF}}_2 & = 0.5x^{\text{SCF}}_1 + u_2 = 0.5(35,000) + 10,000 = 27,500 \\ \nonumber
-	y^{\text{SCF}} & = \sigma \bigg(\frac{x^{\text{SCF}}_1 + x^{\text{SCF}}_2 - 60,000}{10,000} \bigg) = \sigma \bigg(\frac{35,000 + 27,500 - 60,000}{10,000} \bigg) = 0.56 \nonumber
+	x^{\text{SCF}}_1 & = u_1 &  = 35,000 \\ \nonumber
+	x^{\text{SCF}}_2 & = 30,000 & = 30,000 \\ \nonumber
+	x^{\text{SCF}}_3 & = u_3 - 0.25x^{\text{SCF}}_2 = 16,250 - 0.25(30,000) & = 8,750 \\ \nonumber
+	x^{\text{SCF}}_4 & = \frac{x^{\text{SCF}}_3}{x^{\text{SCF}}_1} = \frac{8,750}{35,000} & = 0.25
 \end{align}
 
-Mathematically, we can denote the Action-Abduction-Prediction steps as shown in equation \ref{eq:hard_intervention}, where $I$ is the set of indices of intervened on variables, $\delta_i$ is the action on variable $i$, $f_i \in \mathbb{F}$ is structural equation of the variable $i$,  $\text{pa}_i$ are the parents of variable $i$ and $[\texttt{condition}]$ is 1 if the condition is true and 0 is it is not. \comment{Introduce $\delta_i$ notation}
+Mathematically, we can denote the Action-Abduction-Prediction steps as shown in equation \ref{eq:hard_intervention}, where $I$ is the set of indices of intervened on variables, $\delta_i$ is the action on variable $i$, $f_i \in \mathbb{F}$ is structural equation of the variable $i$,  $\text{pa}_i$ are the parents of variable $i$, $I$ is the set of variables that intervened upon (e.g, ) and $\mathbb{I}$ is the indicator function. \comment{Introduce $\delta_i$ notation}
 
 \begin{align} \label{eq:hard_intervention}
-	x^{\text{SCF}}_i = & [i \in I] (x_i + \delta_i) \\ \nonumber
-	& + [i \notin I] \bigg(x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)\bigg)
+	x^{\text{SCF}}_i = & \mathbb{I}_{i \in I} (x_i + \delta_i) + \mathbb{I}_{i \notin I} \bigg(x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)\bigg)
 \end{align}
 
 
-To calculate recourse $\mathbf{x}^*$ with an SCM over all the features within $\mathbf{x}$, we need to re-formulate the original algorithmic recourse optimisation problem presented in equation \ref{eq:recourse_setup}. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we replace the minimising the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$ with minimising the cost of \textit{interventions} $A = \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D}$ where $D$ is the number of features.\comment{To consider whether better to use $a_i$ notation instead of $x_i + \delta_i$} The updated recourse problem is shown in equation \ref{eq:causal_recourse_problem_hard}.
+To calculate recourse $\boldsymbol{x}^*$ with an SCM over all the features within $\boldsymbol{x}$, we need to re-formulate the original algorithmic recourse optimisation problem presented in equation \ref{eq:recourse_setup}. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we replace the minimising the cost of changing features from $\boldsymbol{x}$ to $\boldsymbol{x}'$ with minimising the cost of \textit{interventions} $A = \text{do} \{\boldsymbol{x}_i:=\boldsymbol{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D}$ where $D$ is the number of features.\comment{To consider whether better to use $a_i$ notation instead of $x_i + \delta_i$} The updated recourse problem is shown in equation \ref{eq:causal_recourse_problem_hard}.
 
 \begin{align} \label{eq:causal_recourse_problem_hard}
-	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
-	\text{s.t. } & h(\mathbf{x}^{\text{SCF}}) = 1, \\ \nonumber
-	& \mathbf{x}^{\text{SCF}}_i = [i \in I] (\mathbf{x}_i + \boldsymbol{\delta}_i) + [i \notin I] \bigg(x_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i)\bigg), \\ \nonumber
+	A^* = & \argmin_{A} \texttt{cost}(\boldsymbol{x}, A) \\ \nonumber
+	\text{s.t. } & h(\boldsymbol{x}^{\text{SCF}}) = 1, \\ \nonumber
+	& \boldsymbol{x}^{\text{SCF}}_i = \mathbb{I}_{i \in I} (\boldsymbol{x}_i + \boldsymbol{\delta}_i) + \mathbb{I}_{i \notin I} \bigg(x_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i)\bigg), \\ \nonumber
 	& A \in \mathcal{F}
 \end{align}
 
-We define the cost of interventions $A$ on original features $\mathbf{x}$ as the sum of the cost of the individual actions. The cost of each individual action is left to be flexible, and can represent a variety of cost functions, such as the $\ell_p$-norm of $\boldsymbol{\delta}_i$ or a percentile shift based cost function such as that used by \textcite{ustunActionableRecourseLinear2019}.
+We define the cost of interventions $A$ on original features $\boldsymbol{x}$ as the sum of the cost of the individual actions. The cost of each individual action is left to be flexible, and can represent a variety of cost functions, such as the $L_p$-norm of $\boldsymbol{\delta}_i$ or a percentile shift based cost function such as that used by \textcite{ustunActionableRecourseLinear2019}.
 
 \begin{equation}
-	\texttt{cost}(\mathbf{x}, A) = \sum_{i=1}^{D} c \bigg(\text{do}(\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i) \bigg)
+	\texttt{cost}(\boldsymbol{x}, A) = \sum_{i=1}^{D} c \bigg(\text{do}(\boldsymbol{x}_i:=\boldsymbol{x}_i + \boldsymbol{\delta}_i) \bigg)
 \end{equation}
 
 This formulation relies on two key assumptions.
 
 \textbf{Assumption 1}. The interventions are structural (hard) interventions, where after intervening on a variable, all incoming edges to its corresponding node in the causal graph are severed. If an individual were to intervene on savings ($x_2$) (perhaps by selling their car or borrowing from family), then we assume that they then stop saving a proportion of their income (severing the edge between $x_1$ and $x_2$).
 
-\textbf{Assumption 2}. Interventions on multiple variables are carried out simultaneously. Given an intervention A = [£32,000, £27,500]$^T$, it is assumed that salary as increased at the same time as savings, as opposed to taking place sequentially.
+\textbf{Assumption 2}. Interventions on multiple variables are carried out simultaneously. Given an intervention A = [£32,000, £27,500, £10,000, 1/3]$^T$, it is assumed that salary as increased at the same time as savings, as opposed to taking place sequentially.
 
 \subsection{Soft (Parametric) Interventions}
 
@@ -95,15 +108,15 @@ In many cases where recourse is provided, such as credit scoring, it is unlikely
 In these cases, we can then represent the interventions as soft (or parametric) interventions, which do not result in severing of incoming edges \citep{eberhardtInterventionsCausalInference2007}. We can represent the resulting value of $x^{\text{SCF}}$ in equation \ref{eq:soft_interventions}. Compared to hard (structural) interventions in equation \ref{eq:hard_intervention}, the formula for $x_i^{\text{SCF}}$ is the same for variables that are not intervened upon, and the effects of incoming edges are present for intervened upon variables through $f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i)$.
 
 \begin{equation} \label{eq:soft_interventions}
-	x^{\text{SCF}}_i = [i \in I] \delta_i + \bigg( x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i) \bigg)
+	x^{\text{SCF}}_i = \mathbb{I}_{i \in I} \delta_i + \bigg( x_i + f_i(\text{pa}^{\text{SCF}}_i) - f_i(\text{pa}_i) \bigg)
 \end{equation}
 
 As the majority of interventions which take place in the context of algorithmic recourse, such as increasing savings and re-taking an test such as the GMAT/GRE (in the case of recourse for postgraduate admissions) do not tend to result in the severing of incoming edges such as the proportion of income saved and the effect of additional revision on test scores, soft interventions are implemented in this thesis. Using soft interventions results in an updated causal recourse problem shown below in equation \ref{eq:causal_recourse_problem_soft}.
 
 \begin{align} \label{eq:causal_recourse_problem_soft}
-	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
-	\text{s.t. } & h(\mathbf{x}^{\text{SCF}}) = 1, \\ \nonumber
-	& 	\mathbf{x}^{\text{SCF}} = [i \in I] \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i) \bigg), \\ \nonumber
+	A^* = & \argmin_{A} \texttt{cost}(\boldsymbol{x}, A) \\ \nonumber
+	\text{s.t. } & h(\boldsymbol{x}^{\text{SCF}}) = 1, \\ \nonumber
+	& 	\boldsymbol{x}^{\text{SCF}} = \mathbb{I}_{i \in I} \boldsymbol{\delta}_i + \bigg( \boldsymbol{x}_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i) \bigg), \\ \nonumber
 	& A \in \mathcal{F}
 \end{align} 
 
@@ -115,7 +128,9 @@ The second assumption of the causal recourse problem formulation in \ref{eq:hard
 Using equation \ref{eq:soft_interventions}, the order of the intervention does not affect the counterfactual values\comment{Potentially worth showing how $f_i(\text{pa}^{\text{SCF}}_i)$ in one intervention is cancelled out by $f_i(\text{pa}_i)$ in the next intervention} $x^{\text{SCF}}_i$, but can affect the cost of actions $A$.
 
 
-\textbf{Proposition 1}. In a sequential intervention setting with $n$ separate interventions where $x_i$ and $x_j$ are intervened upon, if the cost of individual interventions $c(\text{do}(x_i:=x_i + \delta_i))$ depends on the value of $x_i$ and $x_i$ is a descendent of $x_j$, then the ordering of the sequential interventions affects the total cost of the $n$ sequential interventions.
+\begin{proposition} \label{sequential_proposition}
+	In a sequential intervention setting with $n$ separate interventions where $x_i$ and $x_j$ are intervened upon, if the cost of individual interventions $c(\text{do}(x_i:=x_i + \delta_i))$ depends on the value of $x_i$ and $x_i$ is a descendent of $x_j$, then the ordering of the sequential interventions affects the total cost of the $n$ sequential interventions.
+\end{proposition}
 
 \begin{proof}
 	The values of $x_i$ after an intervention on $x_i$ and intervening on $x_j$ are shown below.
@@ -130,7 +145,7 @@ Using equation \ref{eq:soft_interventions}, the order of the intervention does n
 	As the total cost is the sum of the costs of each intervention and the costs for the interventions on $x_i$ are different for each ordering and the intervention on $x_j$ are the same for each ordering, then the total cost for the two orderings of sequential interventions are different. \comment{Make this more maths-y and potentially add a worked example}
 \end{proof}
 
-To take into account the potential effects of different orderings on the costs, we denote interventions as an ordered set $A = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$ where $\mathbf{S}$ is a permutation of the set $\{1, \ldots, D\}^N$ and represents the ordering of the intervention.\comment{To replace $o_i$ with a permutation set?} Given this updated definition of $A$, the causal recourse formulation stays the same as shown in \ref{eq:causal_recourse_problem_soft}.
+To take into account the potential effects of different orderings on the costs, we denote interventions as an ordered set $A = \big\{(\mathbf{S}, \text{do} \{\boldsymbol{x}_i:=\boldsymbol{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$ where $\mathbf{S}$ is a permutation of the set $\{1, \ldots, D\}^N$ and represents the ordering of the intervention.\comment{To replace $o_i$ with a permutation set?} Given this updated definition of $A$, the causal recourse formulation stays the same as shown in \ref{eq:causal_recourse_problem_soft}.
 
 \section{Differentiable Sorting}
 
@@ -204,21 +219,51 @@ The values of the matrix that $\softsort$ produces, such as in equation \ref{eq:
 
 When incorporating $\softsort$ into the the causal recourse problem defined in equation \ref{eq:causal_recourse_problem_soft}, we take the maximum `probability' in each row as the ordering $S$, as opposed to weighting the costs of differing orderings by their `probabilities'.\comment{To work out if and why this is correct - was previously having a problem were converged to O was [0.25, 0.25, 0.25, 0.25] - although potentially because in a setting where ordering didn't matter}
 
-\section{Generating Recourse}
+\section{Generating Recourse} \label{section:generating_recourse}
 
-To generate recourse, we need to solve the below constrained optimisation problem from equation \ref{eq:causal_recourse_problem_soft}, where $A$ is the ordered set $A = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$.
+To generate recourse, we need to solve the below constrained optimisation problem from equation \ref{eq:causal_recourse_problem_soft}, where $A$ is the ordered set $A = \big\{(\mathbf{S}, \text{do} \{\boldsymbol{x}_i:=\boldsymbol{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\}$.
 
 \begin{align}
-	A^* = & \argmin_{A} \texttt{cost}(\mathbf{x}, A) \\ \nonumber
-	\text{s.t. } & h(\mathbf{x}^{\text{SCF}}) = 1, \\ \nonumber
-	& 	\mathbf{x}^{\text{SCF}} = [i \in I] \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i) \bigg), \\ \nonumber
+	A^* = & \argmin_{A} \texttt{cost}(\boldsymbol{x}, A) \\ \nonumber
+	\text{s.t. } & h(\boldsymbol{x}^{\text{SCF}}) = 1, \\ \nonumber
+	& 	\boldsymbol{x}^{\text{SCF}} = \mathbb{I}_{i \in I} \boldsymbol{\delta}_i + \bigg( \boldsymbol{x}_i + f_i(\textbf{pa}^{\text{SCF}}_i) - f_i(\textbf{pa}_i) \bigg), \\ \nonumber
 	& A \in \mathcal{F}
 \end{align} 
 
-Due to the non-convexities introduced from $\texttt{SoftSort}$\comment{and any others such as the causal graph}, we cannot solve this problem using convex optimisation (commonly used for constrained optimisation). Instead we convert the problem from a constrained optimisation problem to a unconstrained optimisation problem and solve using gradient descent. We make use of Lagrange multipliers to reach the problem formulation as a min-max objective with constraint that the classifier scores the updated feature values $\mathbf{x}^{\text{SCF}}$ with a score of at least 0.5 (this can be changed for a given classifier score).
+Due to the non-convexities introduced from $\texttt{SoftSort}$\comment{and any others such as the causal graph}, we cannot solve this problem using convex optimisation (commonly used for constrained optimisation). Instead we convert the problem from a constrained optimisation problem to a unconstrained optimisation problem and solve using gradient descent. We make use of Lagrange multipliers to reach the problem formulation as a min-max objective with constraint that the classifier scores the updated feature values $\boldsymbol{x}^{\text{SCF}}$ with a score of at least 0.5 (this can be changed for a given classifier score).
 
 \begin{equation} \label{eq:lagrange}
-	\min_{A \in \mathcal{F}} \max_{\boldsymbol{\lambda}} \sum_{i=1}^D \texttt{cost}(\mathbf{x}, A) - \boldsymbol{\lambda} \bigg( h(\mathbf{x}^{\text{SCF}}) - 0.5\bigg)
+	\min_{A \in \mathcal{F}} \max_{\boldsymbol{\lambda}} \sum_{i=1}^D \texttt{cost}(\boldsymbol{x}, A) - \boldsymbol{\lambda} \bigg( h(\boldsymbol{x}^{\text{SCF}}) - 0.5\bigg)
 \end{equation}
 
-This expression is then optimised using gradient descent where in each epoch, a gradient descent step is taken for $\boldsymbol{\lambda}$ and then another gradient step is taken for $\mathbf{A}$. The expression is optimised until $h(\mathbf{x}^{\text{SCF}})$ converges to 0.5.
+This expression is then optimised using gradient descent where in each epoch, a gradient descent step is taken for $\boldsymbol{\lambda}$ and then another gradient step is taken for $A$. The expression is optimised until $h(\boldsymbol{x}^{\text{SCF}})$ converges to 0.5.\\
+
+Once the optimisation has converged, we are left with optimal actions $A^*$ for a given classifier $h$, cost function $\cost$ and structural causal model $\mathcal{M}$. From the optimal actions, we can obtain the structural counterfactual feature values $\boldsymbol{x}^{\text{SCF}}$. It is these feature values that are presented to the negatively classified individuals, as opposed to the actions themselves.\\
+
+We only present $\boldsymbol{x}^{\text{SCF}}$ because, whilst we know that $h(\boldsymbol{x}^{\text{SCF}})=1$, we cannot guarantee that $h(\boldsymbol{x}^{\text{SCF}})=1$ 
+unless there is perfect knowledge of the structural causal model. To demonstrate this, we will re-use the SCM from equation \ref{eq:toy_structural_equations}, which we denote as $\mathcal{M}^{\text{TRUE}}$.
+
+\begin{align}
+	x_1 & = u_1 & u_1 \sim N(30 , 5) \\ \nonumber %income
+	x_2 & = u_2 + 0.5x_1 & u_2 \sim N(20, 10) \\ \nonumber %savings
+	x_3 & = u_3 - 0.25x_2 & u_3 \sim \text{Uniform}(0, 20) \\ \nonumber %debt
+	x_4 & = \frac{x_3}{x_1} %debt to income ratio
+\end{align}
+
+Suppose the true SCM was misspecified and we instead used $\mathcal{M}^{\text{FALSE}}$, which is the same as $\mathcal{M}^{\text{TRUE}}$, with the exception of the relationship between $x_1$ and $x_2$ (income and savings). In $\mathcal{M}^{\text{FALSE}}$, the relationship is shown below.
+
+\begin{equation}
+	x_2 = u_2 + x_1
+\end{equation}
+
+For an individual with original features [30, 25, 10, 1/3]$^T$, where $h$ is a linear classifier with bias $b=0$ and weights $w=[0.2, 0.2, -1.25, -3]$, they are initially negatively classified (8\% of approval). Using $\mathcal{M}^{\text{FALSE}}$, they are provided actions $\text{do}(\boldsymbol{x}_1=35)$, which results in $\boldsymbol{x}^{\text{SCF}} = [35, 30, 8.75, 0.25]^T$ and would result in a positive classification (79\% chance of approval). However, as $\mathcal{M}^{\text{FALSE}}$ is a misspecified SCM, the true structural counterfactual from $\text{do}(\boldsymbol{x}_1=35)$ is $\boldsymbol{x}^{\text{SCF}} = [35, 27.5, 9.375, 0.27]^T$, which results in a negative classification (49\% chance of approval). \textcite{karimiAlgorithmicRecourseImperfect2020} provide a more formal proof that, that if the true SCM is not known, then recourse cannot be guaranteed when only providing interventions.
+
+
+
+
+
+
+
+
+
+
