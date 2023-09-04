@@ -290,6 +290,9 @@ if __name__ == "__main__":
     beta_ground_truth = np.array([3, 2, 1, 4, 5])
     beta_ground_truth = beta_ground_truth / np.sum(beta_ground_truth)
 
+    # Device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Ground truth cost
     cost_ground_truth = eval_true_cost(
         X_neg=X_neg,
@@ -299,7 +302,7 @@ if __name__ == "__main__":
         b_classifier=b_classifier,
         beta_ground_truth=beta_ground_truth,
         learn_ordering=args.learn_ordering,
-        sorter=SoftSort(hard=True, tau=args.tau),
+        sorter=SoftSort(hard=True, tau=args.tau, device=device),
         lr=args.lr,
         max_epochs=20_000,
         verbose=False,
@@ -341,7 +344,7 @@ if __name__ == "__main__":
                     beta=learned_beta,
                     beta_ground_truth=beta_ground_truth,
                     learn_ordering=args.learn_ordering,
-                    sorter=SoftSort(hard=True, tau=args.tau),
+                    sorter=SoftSort(hard=True, tau=args.tau, device=device),
                     lr=args.lr,
                     max_epochs=20_000,
                     verbose=False,

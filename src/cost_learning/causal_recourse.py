@@ -95,7 +95,8 @@ class CausalRecourse:
         Set the sorter
         :param sorter: The sorter
         """
-        self.sorter = sorter.to(self.device)
+        self.sorter = sorter
+        self.sorter.device = self.device
 
     def loss(
         self, A: torch.Tensor, O: torch.Tensor
