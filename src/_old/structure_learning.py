@@ -5,8 +5,8 @@ import torch
 from typing import List
 import matplotlib.pyplot as plt
 
-from src.dagma.linear import DagmaLinear
-from src.dagma.nonlinear import DagmaMLP, DagmaNonlinear
+from _old.dagma.linear import DagmaLinear
+from _old.dagma.nonlinear import DagmaMLP, DagmaNonlinear
 
 
 def process_df(df: pd.DataFrame) -> (np.ndarray, List):

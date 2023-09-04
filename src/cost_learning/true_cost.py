@@ -1,13 +1,11 @@
 import torch
 import torch.optim as optim
-import torch.nn as nn
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 
-from softsort import SoftSort
-
-matplotlib.use("TkAgg")
+from src.utils import gen_toy_data
+from src.cost_learning.softsort import SoftSort
+from src.structural_models.structural_causal_model import StructuralCausalModel
+from src.structural_models.synthetic_data import SimpleSCM, NonLinearSCM
 
 
 class TrueCost:
@@ -15,58 +13,63 @@ class TrueCost:
         self,
         X: torch.Tensor,
         X_final: torch.Tensor,
-        W_adjacency: torch.Tensor,
+        scm: StructuralCausalModel,
         beta: torch.Tensor,
         learn_ordering: bool = False,
         sorter: SoftSort = None,
     ):
         self.X = X
         self.X_final = X_final
-        self.W_adjacency = W_adjacency + torch.eye(W_adjacency.shape[0])
+        self.scm = scm
         self.beta = beta / torch.sum(beta)
         self.learn_ordering = learn_ordering
         self.sorter = sorter
 
         self.objective = (
-            lambda A, O: self.loss_diff(A, O)
-            if self.learn_ordering
-            else self.loss_non_diff(A, O)
+            lambda A, O: self.loss(A, O) if self.learn_ordering else self.loss(A, O)
         )
 
-    def loss_diff(self, A: torch.Tensor, O: torch.Tensor):
+        # Ordering
+        if self.learn_ordering is False:
+            self.fixed_ordering = torch.arange(self.X.shape[1]).repeat(
+                self.X.shape[0], 1
+            )
+
+        # Initial value of U
+        self.U = self.scm.abduction(self.X)
+
+    def loss(
+        self, A: torch.Tensor, O: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Differentiable loss function to measure cost (uses SoftSort)
+        :param A: Actions to take for each variable
+        :param O: The initial ordering of the features
+        :return: (X_prime, cost) where X_prime is the sorted values and cost total cost of applying A with ordering O.
+        """
         # Init result tensors
         X_prime = self.X.clone()
-        S = self.sorter(O)
-        cost = torch.zeros(self.X.shape[0])
+        if self.learn_ordering:
+            S = self.sorter(O)
+        else:
+            S = torch.eye(self.X.shape[1])[torch.argsort(self.fixed_ordering)].to(int)
 
-        for i in range(self.W_adjacency.shape[0]):
+        cost = torch.zeros(self.X.shape[0])
+        U = self.scm.abduction(X_prime)
+
+        for i in range(self.X.shape[1]):
             cost += torch.sum(A**2 * S[:, i] * self.beta, dim=1)
             assert (cost >= 0).all(), "Cost should be positive"
-            X_prime += (
-                (self.W_adjacency.T * S[:, i].unsqueeze(-1)) @ A.unsqueeze(-1)
-            ).squeeze(-1)
-
-        return X_prime, cost
-
-    def loss_non_diff(self, A: torch.Tensor, O: torch.Tensor):
-        # Init result tensors
-        X_prime = self.X.clone()
-        S = torch.argsort(O)
-        cost = torch.zeros(self.X.shape[0])
-        A_ordered = torch.gather(A, 1, S)
-
-        for i in range(self.W_adjacency.shape[0]):
-            cost += A_ordered[:, i] ** 2 * self.beta[S[:, i]]
-            assert (cost >= 0).all(), "Cost should be positive"
-            X_prime += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+            U += A * S[:, i]
+            X_prime = self.scm.prediction(U)
 
         return X_prime, cost
 
     def constraint(self, A: torch.Tensor, O: torch.Tensor):
         if self.learn_ordering:
-            X_prime, cost = self.loss_diff(A, O)
+            X_prime, cost = self.loss(A, O)
         else:
-            X_prime, cost = self.loss_non_diff(A, O)
+            X_prime, cost = self.loss(A, O)
         return torch.mean((X_prime - self.X_final) ** 2, dim=1)
 
     @staticmethod
@@ -134,11 +137,9 @@ class TrueCost:
         print(f"Beginning X: {self.X}")
 
         print(f"Final X: {self.X_final}")
-        print(f"Learned X: {self.loss_diff(A, O)[0]}")
+        print(f"Learned X: {self.loss(A, O)[0]}")
 
-        print(f"Weights: {self.W_adjacency}")
-
-        print(f"Final cost: {self.loss_diff(A, O)[1]}")
+        print(f"Final cost: {self.loss(A, O)[1]}")
 
         return objective_list[-1]
 
@@ -151,7 +152,7 @@ class TrueCost:
         O = torch.rand(size=self.X.shape, requires_grad=True, dtype=torch.float64)
 
         # Init optimisers
-        optimiser = optim.SGD([A, O], lr=lr)
+        optimiser = optim.AdamW([A, O], lr=lr)
 
         # Init lists
         objective_list = []
@@ -178,34 +179,29 @@ class TrueCost:
         # vprint(f"Beginning X: {self.X}")
 
         vprint(f"Final X: {self.X_final}")
-        vprint(f"Learned X: {self.loss_diff(A, O)[0]}")
+        vprint(f"Learned X: {self.loss(A, O)[0]}")
 
         # vprint(f"Weights: {self.W_adjacency}")
 
         # vprint(f"Final cost: {self.loss_diff(A, O)[1]}")
 
-        return self.loss_diff(A, O)[1]
+        return self.loss(A, O)[1]
 
 
 if __name__ == "__main__":
-    X = torch.rand(100, 2, dtype=torch.float64)
-    X_final = torch.rand(100, 2, dtype=torch.float64) + 3
-    W_adjacency = torch.rand(2, 2, dtype=torch.float64)
-    # set diagonal to 0
-    W_adjacency = W_adjacency * (
-        1 - torch.eye(W_adjacency.shape[0], dtype=torch.float64)
-    )
-    # set lower triangle to 0
-    W_adjacency = torch.triu(W_adjacency)
-    beta = torch.rand(2, dtype=torch.float64)
-    sorter = SoftSort(tau=0.1, hard=True)
+    N = 1
+    SCM = NonLinearSCM(N)
+    SCM.simulate_data()
 
-    true_cost = TrueCost(
-        X, X_final, W_adjacency, beta, learn_ordering=False, sorter=sorter
-    )
+    X = SCM.X
+    X_final = X + 3
+    beta = torch.rand(X.shape[1], dtype=torch.float64)
+    sorter = SoftSort(tau=1, hard=True)
+
+    true_cost = TrueCost(X, X_final, SCM.scm, beta, learn_ordering=False, sorter=sorter)
 
     # ATTEMPT 1
-    cost = true_cost.eval_true_cost_constrained(lr=0.01, max_epochs=1_000, verbose=True)
+    # cost = true_cost.eval_true_cost_constrained(lr=0.01, max_epochs=1_000, verbose=True)
 
     # ATTEMPT 2
-    cost = true_cost.eval_true_cost(lr=0.01, max_epochs=1_000, verbose=True)
+    cost = true_cost.eval_true_cost(lr=0.01, max_epochs=20_000, verbose=True)

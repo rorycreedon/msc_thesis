@@ -67,10 +67,10 @@ We can use the Abduction-Action-Prediction steps \citep{pearl2016causal} to obta
 \textbf{3. Prediction}. Using the updated model $\mathcal{M}_1$ and values of exogenous variables $\mathbf{u}$, calculate the values of the endogenous variables.
 
 \begin{align}
-	x^{\text{SCF}}_1 & = u_1 &  = 35,000 \\ \nonumber
+	x^{\text{SCF}}_1 & = u_1 &  = 30,000 \\ \nonumber
 	x^{\text{SCF}}_2 & = 30,000 & = 30,000 \\ \nonumber
 	x^{\text{SCF}}_3 & = u_3 - 0.25x^{\text{SCF}}_2 = 16,250 - 0.25(30,000) & = 8,750 \\ \nonumber
-	x^{\text{SCF}}_4 & = \frac{x^{\text{SCF}}_3}{x^{\text{SCF}}_1} = \frac{8,750}{35,000} & = 0.25
+	x^{\text{SCF}}_4 & = \frac{x^{\text{SCF}}_3}{x^{\text{SCF}}_1} = \frac{8,750}{30,000} & = 0.292
 \end{align}
 
 Mathematically, we can denote the Action-Abduction-Prediction steps as shown in equation \ref{eq:hard_intervention}, where $I$ is the set of indices of intervened on variables, $\delta_i$ is the action on variable $i$, $f_i \in \mathbb{F}$ is structural equation of the variable $i$,  $\text{pa}_i$ are the parents of variable $i$, $I$ is the set of variables that intervened upon (e.g, ) and $\mathbb{I}$ is the indicator function. \comment{Introduce $\delta_i$ notation}
@@ -256,7 +256,7 @@ Suppose the true SCM was misspecified and we instead used $\mathcal{M}^{\text{FA
 	x_2 = u_2 + x_1
 \end{equation}
 
-For an individual with original features [30, 25, 10, 1/3]$^T$, where $h$ is a linear classifier with bias $b=0$ and weights $w=[0.2, 0.2, -1.25, -3]$, they are initially negatively classified (8\% of approval). Using $\mathcal{M}^{\text{FALSE}}$, they are provided actions $\text{do}(\boldsymbol{x}_1=35)$, which results in $\boldsymbol{x}^{\text{SCF}} = [35, 30, 8.75, 0.25]^T$ and would result in a positive classification (79\% chance of approval). However, as $\mathcal{M}^{\text{FALSE}}$ is a misspecified SCM, the true structural counterfactual from $\text{do}(\boldsymbol{x}_1=35)$ is $\boldsymbol{x}^{\text{SCF}} = [35, 27.5, 9.375, 0.27]^T$, which results in a negative classification (49\% chance of approval). \textcite{karimiAlgorithmicRecourseImperfect2020} provide a more formal proof that, that if the true SCM is not known, then recourse cannot be guaranteed when only providing interventions.
+For an individual with original features [30, 25, 10, 1/3]$^T$, where $h$ is a linear classifier with bias $b=0$ and weights $w=[0.2, 0.2, -1.25, -3]$, they are initially negatively classified (8\% of approval). Using $\mathcal{M}^{\text{FALSE}}$, they are provided actions $\text{do}(\boldsymbol{x}_1=35)$, which results in $\boldsymbol{x}^{\text{SCF}} = [35, 30, 8.75, 0.25]^T$ and would result in a positive classification (79\% chance of approval). However, as $\mathcal{M}^{\text{FALSE}}$ is a misspecified SCM, the true structural counterfactual from $\text{do}(\boldsymbol{x}_1=35)$ is $\boldsymbol{x}^{\text{SCF}} = [35, 27.5, 9.375, 0.27]^T$, which results in a negative classification (49\% chance of approval). \textcite{karimiAlgorithmicRecourseImperfect2020} provide a more formal proof that, that if the true SCM is not known, then recourse cannot be guaranteed when only providing interventions. \comment{expand this explanation, is a bit too dense}.
 
 
 

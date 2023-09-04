@@ -7,10 +7,10 @@ import matplotlib
 from typing import List, Callable
 import matplotlib as mpl
 
-from structural_models.scm import StructuralCausalModel
-from src.recourse_model import LearnedCostsRecourse
+from structural_models import StructuralCausalModel
+from _old.recourse_model import LearnedCostsRecourse
 from src.utils import get_near_psd, is_psd
-from src.structure_learning import process_df, dagma_mlp
+from _old.structure_learning import process_df, dagma_mlp
 
 matplotlib.use("TkAgg")
 pd.set_option("mode.chained_assignment", None)

@@ -1,8 +1,8 @@
 from scipy.stats import norm
 
-from structural_models.scm import StructuralCausalModel
-from src.structure_learning import dagma_linear, process_df, plot_graph
-from src.causal_effect_estimation import causal_effect_estimation
+from structural_models import StructuralCausalModel
+from _old.structure_learning import dagma_linear, process_df, plot_graph
+from _old.causal_effect_estimation import causal_effect_estimation
 
 
 def simulate_data(N):

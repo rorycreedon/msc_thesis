@@ -1,15 +1,13 @@
 import torch
 import torch.optim as optim
-import torch.nn as nn
 import numpy as np
 import pandas as pd
 import time
 from typing import Union
-import wandb
 import argparse
 
-from softsort import SoftSort
-from kde import GaussianKDE
+from src.cost_learning.softsort import SoftSort
+from src._old.kde import GaussianKDE
 
 
 class CausalRecourseGenerator:
@@ -371,10 +369,8 @@ class CausalRecourseGenerator:
                 action_order = torch.max(self.sorter(O), dim=2)[1].detach().to("cpu")
             else:
                 action_order = self.fixed_ordering.to("cpu")
-            actions = self.recover_interventions(
-                A.detach().to("cpu"), O.detach().to("cpu")
-            )
-            # actions = A.detach().to("cpu")
+            actions = self.recover_interventions(A, O)
+            actions = actions.detach().to("cpu")
             costs = cost.detach().to("cpu")
             probs = torch.sigmoid(constraint + classifier_margin).detach().to("cpu")
 
@@ -394,9 +390,8 @@ class CausalRecourseGenerator:
                 action_order = torch.max(self.sorter(O), dim=1)[1].detach().to("cpu")
             else:
                 action_order = self.fixed_ordering.to("cpu")
-            actions = self.recover_interventions(
-                A.detach().to("cpu"), O.detach().to("cpu")
-            )
+            actions = self.recover_interventions(A, O)
+            actions = actions.detach().to("cpu")
             return (
                 X_prime.detach().to("cpu"),
                 action_order,
@@ -437,21 +432,6 @@ if __name__ == "__main__":
     recourse_gen.set_ordering(torch.arange(4).repeat(N, 1))
     recourse_gen.set_sorter(tau=args.tau)
 
-    # start a new wandb run to track this script
-    # wandb.init(
-    #     # set the wandb project where this run will be logged
-    #     project="causal_recourse_gen",
-    #     # track hyperparameters and run metadata
-    #     config={
-    #         "N": args.N,
-    #         "lr": args.lr,
-    #         "cost_function": args.cost_function,
-    #         "learn_ordering": args.learn_ordering,
-    #         "tau": args.tau,
-    #         "max_epochs": args.max_epochs,
-    #     },
-    # )
-
     start = time.time()
     df = recourse_gen.gen_recourse(
         classifier_margin=0.02,
@@ -463,8 +443,6 @@ if __name__ == "__main__":
     )
     print(f"Time taken: {time.time() - start} seconds")
     print(f"Average cost: {df['cost'].mean()}")
-
-    # wandb.log({"neg_classified": np.mean(df.prob < 0.5)})
 
     # Gen recourse
     print(df[["a1", "a2", "a3", "a4", "cost", "prob"]].head())

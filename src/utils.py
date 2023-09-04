@@ -1,5 +1,8 @@
 from scipy.linalg import eigh
 import numpy as np
+from src.structural_models.structural_causal_model import StructuralCausalModel
+from sympy import symbols, Eq
+import torch
 
 
 def is_psd(matrix: np.array):
@@ -42,12 +45,43 @@ def get_near_psd(matrix: np.array):
     return nearest_spd_matrix
 
 
-def vprint(string: str, verbose: bool = False):
-    """
-    Print a string if verbose is set to True
-    :param verbose:
-    :param string: string to be printed
-    :return: None
-    """
-    if verbose:
-        print(string)
+def gen_toy_data(N):
+    # Start with SCM
+    x1, x2, x3, u1, u2, u3 = symbols("x1 x2 x3 u1 u2 u3")
+
+    # Define the equations
+    eq1 = Eq(x1, u1)
+    eq2 = Eq(x2, u2 + 0.5 * x1)
+    eq3 = Eq(x3, u3 + 0.2 * x1 + 0.3 * x2)
+
+    equations = [eq1, eq2, eq3]
+
+    endog_vars = [x1, x2, x3]
+    exog_vars = [u1, u2, u3]
+
+    distribution_list = [
+        {
+            "name": "u1",
+            "distribution": "Normal",
+            "params": {"loc": 0, "scale": 1},
+        },
+        {
+            "name": "u2",
+            "distribution": "Normal",
+            "params": {"loc": 0, "scale": 1},
+        },
+        {
+            "name": "u3",
+            "distribution": "Normal",
+            "params": {"loc": 0, "scale": 0.5},
+        },
+    ]
+
+    outcome_weights = torch.tensor([0.1, 0.2, 0.3], dtype=torch.float64)
+
+    scm = StructuralCausalModel(endog_vars, exog_vars, equations)
+    X = scm.generate_data(
+        N, distribution_list=distribution_list, outcome_weights=outcome_weights
+    )[0]
+
+    return X, scm

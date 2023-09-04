@@ -11,7 +11,6 @@ import numpy as np
 from torch import optim
 import copy
 from tqdm.auto import tqdm
-from torch.nn.utils import prune
 
 
 class DagmaMLP(nn.Module):
@@ -204,7 +203,6 @@ class DagmaNonlinear:
 
 
 if __name__ == "__main__":
-    from timeit import default_timer as timer
     import utils
 
     # torch.set_default_dtype(torch.double)
