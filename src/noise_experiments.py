@@ -5,12 +5,34 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib
 from typing import Union, List
+import logging
+import os
 
 from structural_models import SimpleSCM, NonLinearSCM, StructuralCausalModel
 from cost_learning import CausalRecourse, TrueCost, SoftSort, CostLearner
 
 
 matplotlib.use("TkAgg")
+
+
+# Ensure the 'logs' directory exists
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+# Set up logging
+logging.basicConfig(
+    filename="logs/noise_experiments.log",
+    filemode="w",
+    format="%(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+
+# Add a stream handler to also log to the console
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(
+    logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+)
+logging.getLogger().addHandler(console_handler)
 
 
 def gen_recourse(
@@ -284,7 +306,7 @@ if __name__ == "__main__":
         scm=SCM.scm,
     )
 
-    print(f"Ground truth cost: {cost_ground_truth}")
+    logging.info(f"Ground truth cost: {cost_ground_truth}")
 
     results = np.empty((args.num_trials, args.num_levels, args.num_levels))
 
@@ -326,11 +348,19 @@ if __name__ == "__main__":
                     scm=SCM.scm,
                 )
 
-                print(f"scm_noise : {scm_noise} | Eval noise: {e_noise} | Trial: {n}")
-                print(
+                logging.info(
+                    f"scm_noise : {scm_noise} | Eval noise: {e_noise} | Trial: {n}"
+                )
+                logging.info(
                     f"{round(100 * ((cost / cost_ground_truth) - 1), 2)}% increase in cost"
                 )
+
                 results[n, i, j] = (cost / cost_ground_truth) - 1
 
+    # Save file
+    np.save(f"results/{args.scm}SCM_noise_results", results)
+
     # Plot
-    plot(scm_noise_levels, eval_noise_levels, results, title="SimpleSCM_noise_plot")
+    plot(
+        scm_noise_levels, eval_noise_levels, results, title=f"{args.scm}SCM_noise_plot"
+    )

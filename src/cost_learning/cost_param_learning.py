@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from src.structural_models.structural_causal_model import StructuralCausalModel
-from src.utils import gen_toy_data
+from src.structural_models.synthetic_data import SimpleSCM, NonLinearSCM
 
 
 class CostLearner:
@@ -101,7 +101,8 @@ class CostLearner:
             U += (actions - X_prime) * (S == i)
             X_prime = scm.prediction(U)
             # Add noise to SCM
-            # noise = torch.normal(0, scm_noise, size=X_prime.shape) * S[:, i]
+            noise = torch.normal(0, scm_noise, size=X_prime.shape) * (S != i)
+            X_prime += noise
 
         return cost
 
@@ -336,16 +337,20 @@ class CostLearner:
 
 
 if __name__ == "__main__":
-    # torch.autograd.set_detect_anomaly(True)
-    X, scm = gen_toy_data(10_000)
-    ground_truth_beta = torch.tensor([7, 2, 1], dtype=torch.float64)
+    # X, scm = gen_toy_data(10_000)
+    N = 10_000
+    SCM = NonLinearSCM(N)
+    SCM.simulate_data()
+
+    X = SCM.X
+    ground_truth_beta = torch.tensor([7, 2, 1, 5, 4], dtype=torch.float64)
 
     cost_learner = CostLearner(
         X=X,
         n_comparisons=5,
         ground_truth_beta=ground_truth_beta,
-        scm=scm,
+        scm=SCM.scm,
         scm_known=False,
     )
-    cost_learner.eval_random_actions()
-    cost_learner.learn(verbose=True, lr=2e-3, l2_reg=0, max_epochs=2_000)
+    cost_learner.eval_random_actions(scm_noise=0)
+    cost_learner.learn(verbose=True, lr=2e-3, l2_reg=0.1, max_epochs=2_000)
