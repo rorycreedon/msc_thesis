@@ -18,12 +18,14 @@ class TrueCost:
         learn_ordering: bool = False,
         sorter: SoftSort = None,
     ):
-        self.X = X
-        self.X_final = X_final
+        self.X = X.to(self.device)
+        self.X_final = X_final.to(self.device)
         self.scm = scm
-        self.beta = beta / torch.sum(beta)
+        self.beta = (beta / torch.sum(beta)).to(self.device)
         self.learn_ordering = learn_ordering
         self.sorter = sorter
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.objective = (
             lambda A, O: self.loss(A, O) if self.learn_ordering else self.loss(A, O)
@@ -149,7 +151,9 @@ class TrueCost:
 
         # Random initialisation of A and O
         A = torch.rand(size=self.X.shape, requires_grad=True, dtype=torch.float64)
+        A.to(self.device)
         O = torch.rand(size=self.X.shape, requires_grad=True, dtype=torch.float64)
+        O.to(self.device)
 
         # Init optimisers
         optimiser = optim.AdamW([A, O], lr=lr)

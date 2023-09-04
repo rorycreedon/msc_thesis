@@ -15,24 +15,25 @@ from cost_learning import CausalRecourse, TrueCost, SoftSort, CostLearner
 matplotlib.use("TkAgg")
 
 
-# Ensure the 'logs' directory exists
-if not os.path.exists("logs"):
-    os.makedirs("logs")
+def setup_logging(args) -> None:
+    # Ensure the 'logs' directory exists
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
 
-# Set up logging
-logging.basicConfig(
-    filename="logs/noise_experiments.log",
-    filemode="w",
-    format="%(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+    # Set up logging
+    logging.basicConfig(
+        filename=f"logs/{args.scm}SCM_noise_results.log",
+        filemode="w",
+        format="%(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
 
-# Add a stream handler to also log to the console
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(
-    logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-)
-logging.getLogger().addHandler(console_handler)
+    # Add a stream handler to also log to the console
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    )
+    logging.getLogger().addHandler(console_handler)
 
 
 def gen_recourse(
@@ -196,6 +197,10 @@ def eval_true_cost(
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
     beta_ground_truth = torch.tensor(beta_ground_truth, dtype=torch.float64)
 
+    print(f"X_neg device - {X_neg.get_device()}")
+    print(f"X_prime device - {X_prime.get_device()}")
+    print(f"beta_ground_truth device - {beta_ground_truth.get_device()}")
+
     # Calculate true cost
     true_cost = TrueCost(
         X=X_neg,
@@ -266,6 +271,8 @@ if __name__ == "__main__":
     parser.add_argument("--max_noise", type=float, default=2)
     parser.add_argument("--scm", type=str, default="nonlinear")
     args = parser.parse_args()
+
+    setup_logging(args)
 
     N = args.N
 
