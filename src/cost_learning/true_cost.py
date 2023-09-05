@@ -69,11 +69,8 @@ class TrueCost:
         return X_prime, cost
 
     def constraint(self, A: torch.Tensor, O: torch.Tensor):
-        if self.learn_ordering:
-            X_prime, cost = self.loss(A, O)
-        else:
-            X_prime, cost = self.loss(A, O)
-        return torch.mean((X_prime - self.X_final) ** 2, dim=1)
+        X_prime, _ = self.loss(A, O)
+        return torch.mean((X_prime - self.X_final) ** 2)
 
     @staticmethod
     def clip_tensor_gradients_by_row(tensor, max_norm):
@@ -151,7 +148,7 @@ class TrueCost:
         vprint = print if verbose else lambda *a, **k: None
 
         # Random initialisation of A and O
-        A = torch.rand(
+        A = torch.zeros(
             size=self.X.shape,
             requires_grad=True,
             dtype=torch.float64,
@@ -172,7 +169,7 @@ class TrueCost:
 
         # Loop through epochs
         for epoch in range(max_epochs):
-            loss = self.constraint(A, O).sum()
+            loss = self.constraint(A, O)
             optimiser.zero_grad()
             loss.backward()
             optimiser.step()
