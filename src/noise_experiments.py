@@ -197,10 +197,6 @@ def eval_true_cost(
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
     beta_ground_truth = torch.tensor(beta_ground_truth, dtype=torch.float64)
 
-    print(f"X_neg device - {X_neg.get_device()}")
-    print(f"X_prime device - {X_prime.get_device()}")
-    print(f"beta_ground_truth device - {beta_ground_truth.get_device()}")
-
     # Calculate true cost
     true_cost = TrueCost(
         X=X_neg,
