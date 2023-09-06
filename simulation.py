@@ -12,7 +12,6 @@ from _old.recourse_model import LearnedCostsRecourse
 from src.utils import get_near_psd, is_psd
 from _old.structure_learning import process_df, dagma_mlp
 
-matplotlib.use("TkAgg")
 pd.set_option("mode.chained_assignment", None)
 
 

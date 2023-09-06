@@ -12,9 +12,6 @@ from structural_models import SimpleSCM, NonLinearSCM, StructuralCausalModel
 from cost_learning import CausalRecourse, TrueCost, SoftSort, CostLearner
 
 
-matplotlib.use("TkAgg")
-
-
 def setup_logging(args) -> None:
     # Ensure the 'logs' directory exists
     if not os.path.exists("logs"):
