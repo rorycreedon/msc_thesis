@@ -1,11 +1,11 @@
-<mxfile host="Electron" modified="2023-08-31T00:47:56.103Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.6.8 Chrome/114.0.5735.289 Electron/25.5.0 Safari/537.36" etag="hd3sgmtdBgwzWrQpqhq-" version="21.6.8" type="device">
+<mxfile host="Electron" modified="2023-09-06T20:22:52.190Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.6.8 Chrome/114.0.5735.289 Electron/25.5.0 Safari/537.36" etag="qxzn2LbUFhhDQNd3EYLp" version="21.6.8" type="device">
   <diagram name="Page-1" id="aZgiLzDIBx6qcVFR6Ulm">
-    <mxGraphModel dx="1434" dy="839" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
+    <mxGraphModel dx="1434" dy="2040" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="l0kGru4__x6L-rLLEfGO-1" value="Classify individuals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=cmf10;" parent="1" vertex="1">
-          <mxGeometry width="120" height="60" as="geometry" />
+        <mxCell id="l0kGru4__x6L-rLLEfGO-1" value="1. Classify individuals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=cmf10;" parent="1" vertex="1">
+          <mxGeometry width="130" height="60" as="geometry" />
         </mxCell>
         <mxCell id="l0kGru4__x6L-rLLEfGO-2" value="" style="endArrow=classic;html=1;rounded=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="l0kGru4__x6L-rLLEfGO-1" target="l0kGru4__x6L-rLLEfGO-3" edge="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
@@ -13,17 +13,17 @@
             <mxPoint x="240" y="80" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="l0kGru4__x6L-rLLEfGO-3" value="Generate ordered actions to evaluate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=cmf10;" parent="1" vertex="1">
-          <mxGeometry x="200" width="120" height="60" as="geometry" />
+        <mxCell id="l0kGru4__x6L-rLLEfGO-3" value="2. Generate ordered actions to evaluate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=cmf10;" parent="1" vertex="1">
+          <mxGeometry x="200" width="130" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="l0kGru4__x6L-rLLEfGO-4" value="Individuals evalutate ordered actions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=cmf10;" parent="1" vertex="1">
-          <mxGeometry x="400" width="120" height="60" as="geometry" />
+        <mxCell id="l0kGru4__x6L-rLLEfGO-4" value="3. Users evaluate ordered actions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=cmf10;" parent="1" vertex="1">
+          <mxGeometry x="400" width="130" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="l0kGru4__x6L-rLLEfGO-5" value="Learn preferences \(\beta\) and SCM parameters \(W\)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=cmf10;" parent="1" vertex="1">
-          <mxGeometry x="600" width="120" height="60" as="geometry" />
+        <mxCell id="l0kGru4__x6L-rLLEfGO-5" value="4. Learn preferences \(\hat{\beta_k}\) and SCM parameters \(\hat{W}\)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=cmf10;" parent="1" vertex="1">
+          <mxGeometry x="600" width="130" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="l0kGru4__x6L-rLLEfGO-6" value="Generate recourse using \(\beta\) and \(W\)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontFamily=cmf10;" parent="1" vertex="1">
-          <mxGeometry x="800" width="120" height="60" as="geometry" />
+        <mxCell id="l0kGru4__x6L-rLLEfGO-6" value="5. Generate recourse using \(\hat{\beta}\) and \(\hat{W\})" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=cmf10;" parent="1" vertex="1">
+          <mxGeometry x="800" width="130" height="60" as="geometry" />
         </mxCell>
         <mxCell id="l0kGru4__x6L-rLLEfGO-7" value="" style="endArrow=classic;html=1;rounded=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="l0kGru4__x6L-rLLEfGO-3" target="l0kGru4__x6L-rLLEfGO-4" edge="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">

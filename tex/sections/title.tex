@@ -1,30 +1,47 @@
 \begin{singlespace}
     \begin{titlepage}
+    	
+    	\AddToShipoutPicture*{
+    		\AtPageLowerLeft{
+    			\makebox[\textwidth]{\includegraphics[width=1.5\paperwidth]{images/UCL Page footer.png}}
+    		}
+    	}
+    	
         %Include the logo
-        \center{}
-        \includegraphics[width=0.75\linewidth]{images/ucl_logo.png} \vspace{0.5cm}
+        \centering
+%        \includegraphics[width=\paperwidth]{images/ucl_logo.png} \vspace{0.5cm}
+		\vspace*{-3.75cm}
+		\makebox[\textwidth]{\includegraphics[width=\paperwidth]{images/UCL_logo.png}} \vspace{1cm}
 
         %Include the thesis title
-        \rule{\linewidth}{0.5mm} \\[0.5cm]
-            { \begin{spacing}{1}
-            	\HUGE \textsc{\thesisTitle}
-              \end{spacing}}
-        \rule{\linewidth}{0.5mm} \\[1cm]
+        { \begin{spacing}{1.35}
+        		\HUGE {\textbf{Causal Algorithmic Recourse from Revealed Preferences}}
+        \end{spacing} }
+    
+    	\vspace{0.5cm}        
 		
 
         %Include the author information
-        \huge \textbf{\textsc{\authorName}}\\
-        \textsc{\LARGE University College London}\\
-        \textsc{\LARGE \department}\\[2cm]
+        \huge \textbf{{\authorName}}\\
+        {\LARGE University College London}\\
+        {\LARGE \department}\\[2cm]
 
-        {\Large Submitted to University College London (UCL) in partial fulfilment of the requirements for the award of the degree of \\ \textit{Master of Science in Data Science and Machine Learning}.}\\[2cm]
+        {\Large Submitted to University College London in partial fulfilment of the requirements for the award of the degree of \\ \textit{Master of Science in Data Science and Machine Learning}.}\\[0.5cm]
 
         %Include the supervisors and examiners
-        {\Large Industry supervisor: \primarySupervisor}\\
-        {\Large Academic supervisor: \secondarySupervisor}\\[2cm]
-
-        %Include the supplementary information
-        {\Large Submission date: \submissionDate}
+        \begin{align*}
+        	\text{\Large Industry supervisor: } & \text{\Large \textbf{\primarySupervisor}} \\
+        	\text{\Large Academic supervisor: } & \text{\Large \textbf{\secondarySupervisor}} \\[1cm]
+        	\text{\Large Submission date: } & \text{\Large \textbf{\submissionDate}}
+        \end{align*}\\[2cm]
+        
+        % Note at the end
+        {\begin{flushleft}
+        	\begin{spacing}{1.1}
+        		\normalsize This thesis is substantially the result of my own work except where explicitly indicated in the text. It may be freely copied and distributed provided the source is explicitly acknowledged.
+        	\end{spacing}
+       	\end{flushleft}
+    	}
         
     \end{titlepage}
 \end{singlespace}

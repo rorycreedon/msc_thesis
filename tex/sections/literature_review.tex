@@ -6,31 +6,31 @@ Algorithmic recourse was first defined in the machine learning literature as ``t
 
 
 \subsection{Problem Formulation}
-The algorithmic recourse problem can be defined formally as shown in equation \ref{eq:recourse_setup}, where an individuals' original features are $\boldsymbol{x}$, $h: \mathbb{R}^D \to \{0,1\}$ is the classifier and $\mathcal{F}$ is the set of feasible features values. The set of feasible feature values constrains $\boldsymbol{x}'$ by only allowing positive/integer/similar constraints values of $\boldsymbol{x}'_i$ where relevant (e.g, number of credit cards must be either 0 or a positive integer, credit score must be between 0 and 999\footnote{Experian credit scores run from 0-999, see link \href{https://www.experian.co.uk/consumer/experian-credit-score.html}{here}.}). For \textit{immutable} variables (e.g., race, birthplace, etc.) it must be that the new feature value is the same as the original, that is $\boldsymbol{x}_i=\boldsymbol{x}'_i$.
+The algorithmic recourse problem can be defined formally as shown in equation \ref{eq:recourse_setup}, where an individuals' original features are $\mathbf{x}$, $h: \mathbb{R}^D \to \{0,1\}$ is the classifier and $\mathcal{F}$ is the set of feasible features values. The set of feasible feature values constrains $\mathbf{x}'$ by only allowing positive/integer/similar constraints values of $\mathbf{x}'_i$ where relevant (e.g, number of credit cards must be either 0 or a positive integer, credit score must be between 0 and 999\footnote{Experian credit scores run from 0-999, see link \href{https://www.experian.co.uk/consumer/experian-credit-score.html}{here}.}). For \textit{immutable} variables (e.g., race, birthplace, etc.) it must be that the new feature value is the same as the original, that is $\mathbf{x}_i=\mathbf{x}'_i$.
 
 \begin{align} \label{eq:recourse_setup}
-	\boldsymbol{x}^* = & \argmin_{\boldsymbol{x}'}  \cost(\boldsymbol{x}, \boldsymbol{x}') \\ \nonumber
-	\text{s.t. } & h(\boldsymbol{x}') = 1, \\ \nonumber
-	& \boldsymbol{x}' \in \mathcal{F}
+	\mathbf{x}^* = & \argmin_{\mathbf{x}'}  \cost(\mathbf{x}, \mathbf{x}') \\ \nonumber
+	\text{s.t. } & h(\mathbf{x}') = 1, \\ \nonumber
+	& \mathbf{x}' \in \mathcal{F}
 \end{align}
 
-\subsection{Cost Functions}
+\subsection{Cost Functions} \label{section:cost_functions_lit_review}
 
-Typically, the cost function is either of the form $L_p(\boldsymbol{x}'-\boldsymbol{x}')$, with the $L_1$ and $L_2$ norm being the most common \citep{ramakrishnanSynthesizingActionSequences2020, karimiSurveyAlgorithmicRecourse2022}. For the $L_1$ and $L_2$ norms, this cost function is always greater than or equal to 0, and is minimised when $\boldsymbol{x} =\boldsymbol{x}'$. The further away from the original features $\boldsymbol{x}$ that the counterfactual values $\boldsymbol{x}'$ are, the higher the cost. Intuitively, this means that leaving the features unchanged will result in a cost of 0, whilst significant changes (either positive or negative) will occur a cost that increases with the size of the changes.\\
+Typically, the cost function is either of the form $L_p(\mathbf{x}'-\mathbf{x}')$, with the $L_1$ and $L_2$ norm being the most common \citep{ramakrishnanSynthesizingActionSequences2020, karimiSurveyAlgorithmicRecourse2022}. For the $L_1$ and $L_2$ norms, this cost function is always greater than or equal to 0, and is minimised when $\mathbf{x} =\mathbf{x}'$. The further away from the original features $\mathbf{x}$ that the counterfactual values $\mathbf{x}'$ are, the higher the cost. Intuitively, this means that leaving the features unchanged will result in a cost of 0, whilst significant changes (either positive or negative) will occur a cost that increases with the size of the changes.\\
 
-Another function prevalent in the algorithmic recourse literature is the total log percentile shift \citep{ustunActionableRecourseLinear2019}, shown in equation \ref{eq:total_log_percentile_shift}, where $D$ is the number of features and $Q_i$ represents the CDF of $\boldsymbol{x}_i$. This cost function also considers the cost of each feature changed independently. It punishes increasing from the percentile $Q_i(\boldsymbol{x}'_i)$ is larger than the original percentile $Q_i(\boldsymbol{x}_i)$. A key advantage of this cost function is that changes become harder when starting from a higher percentile, e.g, moving from the 50$^{\text{th}}$ to 55$^{\text{th}}$ percentile carries a cost of 0.105, where as moving from the 90$^{\text{th}}$ to 95$^{\text{th}}$ percentile carries a cost of 0.693. This is likely to reflect reality more than the same cost for increasing percentile by 5 percentage points. Whilst the cost is 0 when $\boldsymbol{x}_i = \boldsymbol{x}'_i$, it becomes negative when $Q_i(\boldsymbol{x}'_i) < Q_i(\boldsymbol{x}_i)$. Therefore, for this cost function to applied correctly, it requires a monotonic constraint (e.g. increasing income is positively associated with credit score)\comment{improve this}.
+Another function prevalent in the algorithmic recourse literature is the total log percentile shift \citep{ustunActionableRecourseLinear2019}, shown in equation \ref{eq:total_log_percentile_shift}, where $D$ is the number of features and $Q_i$ represents the CDF of $\mathbf{x}_i$. This cost function also considers the cost of each feature changed independently. It punishes increasing from the percentile $Q_i(\mathbf{x}'_i)$ is larger than the original percentile $Q_i(\mathbf{x}_i)$. A key advantage of this cost function is that changes become harder when starting from a higher percentile, e.g, moving from the 50$^{\text{th}}$ to 55$^{\text{th}}$ percentile carries a cost of 0.105, where as moving from the 90$^{\text{th}}$ to 95$^{\text{th}}$ percentile carries a cost of 0.693. This is likely to reflect reality more than the same cost for increasing percentile by 5 percentage points. Whilst the cost is 0 when $\mathbf{x}_i = \mathbf{x}'_i$, it becomes negative when $Q_i(\mathbf{x}'_i) < Q_i(\mathbf{x}_i)$. Therefore, for this cost function to applied correctly, it requires a monotonic constraint (e.g. increasing income is positively associated with credit score)\comment{improve this}.
 
 \begin{equation} \label{eq:total_log_percentile_shift}
-	\cost(\boldsymbol{x}, \boldsymbol{x}') = \sum_{i=1}^D \log \bigg( \frac{1 - Q_i(\boldsymbol{x}_i)}{1 - Q_i(\boldsymbol{x}_i')} \bigg)
+	\cost(\mathbf{x}, \mathbf{x}') = \sum_{i=1}^D \log \bigg( \frac{1 - Q_i(\mathbf{x}_i)}{1 - Q_i(\mathbf{x}_i')} \bigg)
 \end{equation}
 
-A related branch of literature, \textit{strategic classification} studies the effect of the behaviour of strategic agents on classifiers. Individuals strategically manipulate their features in order to gain a favourable outcome, as opposed to increasing the underlying variable being classified, for example `credit-worthiness' in a credit scoring setting or practical skills relevant to a specific job in the hiring setting. Designing strategy-robust classifiers or classifiers that incentivise improvement requires a cost function of changing features from $\boldsymbol{x}$ to $\boldsymbol{x}'$. Whilst the  $L_1$ and $L_2$ norms are prevalent in the strategic classification literature, \textcite{bechavodInformationDiscrepancyStrategic2022} also consider the Mahalanobis distance. A Mahalanobis distance (or quadratic form) cost function is shown in equation \ref{eq:mahalanobis_distance}, where $\boldsymbol{M}$ is a positive semi-definite matrix. 
+A related branch of literature, \textit{strategic classification} studies the effect of the behaviour of strategic agents on classifiers. Individuals strategically manipulate their features in order to gain a favourable outcome, as opposed to increasing the underlying variable being classified, for example `credit-worthiness' in a credit scoring setting or practical skills relevant to a specific job in the hiring setting. Designing strategy-robust classifiers or classifiers that incentivise improvement requires a cost function of changing features from $\mathbf{x}$ to $\mathbf{x}'$. Whilst the  $L_1$ and $L_2$ norms are prevalent in the strategic classification literature, \textcite{bechavodInformationDiscrepancyStrategic2022} also consider the Mahalanobis distance. A Mahalanobis distance (or quadratic form) cost function is shown in equation \ref{eq:mahalanobis_distance}, where $\mathbf{M}$ is a positive semi-definite matrix. 
 
 \begin{equation} \label{eq:mahalanobis_distance}
-	\texttt{cost}(\boldsymbol{x}, \boldsymbol{x}') = (\boldsymbol{x} -\boldsymbol{x}')^T\boldsymbol{M}(\boldsymbol{x} - \boldsymbol{x}')
+	\texttt{cost}(\mathbf{x}, \mathbf{x}') = (\mathbf{x} -\mathbf{x}')^T\mathbf{M}(\mathbf{x} - \mathbf{x}')
 \end{equation}
 
-As well as allowing for different relative costs of changing features independently (along the diagonal), a Mahalanobis-based cost function allows changing the value of one feature to change the cost of changing another feature. A worked example is shown below. Let $\boldsymbol{x} = [2,3,4]^T$ and $\boldsymbol{x}' = [1,1,1]^T$. First, note that $(\boldsymbol{x} -\boldsymbol{x}')^T\boldsymbol{M}(\boldsymbol{x} - \boldsymbol{x}') = (\boldsymbol{x} -\boldsymbol{x}')^2$ if $\boldsymbol{M}$ is the identity matrix. If the values along the diagonal of $\boldsymbol{M}$ were different, this would encode different costs for changing each feature.
+As well as allowing for different relative costs of changing features independently (along the diagonal), a Mahalanobis-based cost function allows changing the value of one feature to change the cost of changing another feature. A worked example is shown below. Let $\mathbf{x} = [2,3,4]^T$ and $\mathbf{x}' = [1,1,1]^T$. First, note that $(\mathbf{x} -\mathbf{x}')^T\mathbf{M}(\mathbf{x} - \mathbf{x}') = (\mathbf{x} -\mathbf{x}')^2$ if $\mathbf{M}$ is the identity matrix. If the values along the diagonal of $\mathbf{M}$ were different, this would encode different costs for changing each feature.
 
 \begin{equation}
 	[1, 2, 3]^T \left[\begin{array}{lllll}
@@ -40,17 +40,20 @@ As well as allowing for different relative costs of changing features independen
 	\end{array}\right] [1, 2, 3]^T = 1^2 + 2^2 + 3^2 = 14
 \end{equation}
 
-When the diagonals are non-zero, this results changing one feature affects the cost of changing another feature. See the below example, where changing $\boldsymbol{x}_1$ leads to an increased cost in changing $\boldsymbol{x}_2$.
+When the diagonals are non-zero, this results changing one feature affects the cost of changing another feature. See the below example, where changing $\mathbf{x}_1$ leads to an decreased cost in changing $\mathbf{x}_2$.
 
-\begin{equation}
+\begin{equation} \label{eq:mahalanobis_example}
 	[1, 2, 3]^T \left[\begin{array}{lllll}
 		1 & 0 & 0 \\
-		0.5 & 1 & 0 \\
+		-0.5 & 1 & 0 \\
 		0 & 0 & 1
-	\end{array}\right] [1, 2, 3]^T = 1^2 + 2.5(2) + 3^2 = 15
+	\end{array}\right] [1, 2, 3]^T = 1^2 + 1.5(2) + 3^2 = 13
 \end{equation}
 
-The matrix $\boldsymbol{M}$ must be manually specified, meaning that the principal (the provide of recourse) must estimate $M$ before providing recourse. \comment{explain how this is correlative, not causal}
+The matrix $\mathbf{M}$ must be manually specified, meaning that the principal (the provide of recourse) must estimate $\mathbf{M}$ before providing recourse.
+
+
+Note that using the Mahalanobis distance does not result in any downstream cost 
 
 [\textbf{TO CONSIDER WHICH OF THE BELOW ACTUALLY NEEDS TO GO IN THE LIT REVIEW}]
 

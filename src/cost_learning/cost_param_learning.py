@@ -25,7 +25,10 @@ class CostLearner:
 
         self.X = X
         self.n_comparisons = n_comparisons
-        self.ground_truth_beta = ground_truth_beta / torch.sum(ground_truth_beta)
+        # self.ground_truth_beta = ground_truth_beta / torch.sum(ground_truth_beta)
+        self.ground_truth_beta = ground_truth_beta / torch.sum(
+            ground_truth_beta, axis=1, keepdims=True
+        )
         self.scm = scm
         self.scm_known = scm_known
 
@@ -40,7 +43,7 @@ class CostLearner:
         Generate random actions for the pairwise comparisons
         :return: None
         """
-        self.actions = torch.rand(
+        self.actions = self.X + torch.rand(
             2, self.n_comparisons, self.X.shape[0], self.X.shape[1], dtype=torch.float64
         )
         N, D = self.X.shape
@@ -245,9 +248,7 @@ class CostLearner:
         vprint = print if verbose else lambda *a, **k: None
 
         # Initialise parameters
-        learned_beta = torch.ones(
-            self.X.shape[1], dtype=torch.float64, requires_grad=True
-        )
+        learned_beta = torch.ones(self.X.shape, dtype=torch.float64, requires_grad=True)
 
         # If W assumed to be known, set it to the ground truth
         if self.scm_known is False:
@@ -296,7 +297,9 @@ class CostLearner:
 
             # Ensure beta is positive and normalise so it sums to 1
             learned_beta.data = torch.clamp(learned_beta.data, min=0)
-            learned_beta.data = learned_beta.data / torch.sum(learned_beta.data)
+            learned_beta.data = learned_beta.data / torch.sum(
+                learned_beta.data, axis=1, keepdims=True
+            )
 
             # Track losses
             loss_list.append(loss.item())
@@ -338,19 +341,24 @@ class CostLearner:
 
 if __name__ == "__main__":
     # X, scm = gen_toy_data(10_000)
-    N = 10_000
-    SCM = NonLinearSCM(N)
+    N = 1_000
+    SCM = SimpleSCM(N)
     SCM.simulate_data()
+    y_pred, X_neg, clf = SCM.classify_data()
+    X_neg = torch.tensor(X_neg, dtype=torch.float64)
 
-    X = SCM.X
-    ground_truth_beta = torch.tensor([7, 2, 1, 5, 4], dtype=torch.float64)
+    ground_truth_beta = torch.tensor([7, 2, 1], dtype=torch.float64).repeat(
+        X_neg.shape[0], 1
+    )
+    # add noise
+    ground_truth_beta = torch.abs(torch.normal(0, 1, size=ground_truth_beta.shape))
 
     cost_learner = CostLearner(
-        X=X,
-        n_comparisons=5,
+        X=X_neg,
+        n_comparisons=10,
         ground_truth_beta=ground_truth_beta,
         scm=SCM.scm,
         scm_known=False,
     )
-    cost_learner.eval_random_actions(scm_noise=0)
-    cost_learner.learn(verbose=True, lr=2e-3, l2_reg=0.1, max_epochs=2_000)
+    cost_learner.eval_random_actions(scm_noise=0, eval_noise=0)
+    cost_learner.learn(verbose=True, lr=1e-3, l2_reg=0.1, max_epochs=2_000)

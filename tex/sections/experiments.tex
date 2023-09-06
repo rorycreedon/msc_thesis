@@ -1,13 +1,37 @@
 \chapter{Experiments} \label{chapter:experiments}
 
-The end-to-end workflow is as follows:
+In this chapter, we evaluate how effective our learned cost function is, which is described below, where $D$ is the number of features, $A$ is the set of actions and the resulting value of $\mathbf{x}$ after the interventions is $\mathbf{x}^{\text{PCF}}$.
+
+\begin{align} \label{eq:cost_function_experiments}
+	\cost(A, \beta_k, \mathcal{F}) & = \sum_{i=1}^D \delta_i \beta_{ki}^2 \\ \nonumber
+	A & = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\} \\ \nonumber
+	\mathbf{x}^{\text{PCF}} & = \mathbb{I}_{i \in I} \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{PCFF}}_i) - f_i(\textbf{pa}_i) \bigg)
+\end{align}
+
+\section{End-to-End Methodology}
+
+The end to end methodology for generating recourse with a learned cost is shown in Figure \ref{fig:workflow}, and more details on each of the steps in the methodology are described below.
 
 \begin{figure}[!htb]
 	\centering
 	\includegraphics[width=\linewidth]{images/draw.io/workflow.png}
-	\caption{Workflow diagram}
+	\caption{End-to-End Methodology}
 	\label{fig:workflow}
 \end{figure}
+
+\begin{enumerate}
+	\item \textbf{Classify individuals}. Individuals with features $\mathbf{X}$ are assessed by a classifier and are classified either positively (e.g., loan approved, admission acceptance) or negatively (e.g., loan rejected, admission rejected). In this thesis, logistic regression has been used, largely for simplicity. However, as an augmented Lagrangian gradient descent optimisation is used to generate recourse (see section \ref{section:generating_recourse}), any differentiable classifier could be used instead of logistic regression.
+	
+	\item \textbf{Generate ordered actions to evaluate}. We randomly generate actions for each negatively classified individual, which are centred around their features $\mathbf{X}$ and associated randomly generated orderings. This is another area for future work, where an online or Bayesian approach could be used to generate recourse actions in order to maximise information gain, such as the approach used in \textcite{detoniPersonalizedAlgorithmicRecourse2023}.
+	
+	\item \textbf{Users evaluate ordered actions}. Using the cost function described in equation \ref{eq:cost_function_experiments} with noisy user preferences $\tilde{\beta_k}$ and noisy SCM $\tilde{\mathcal{F}}$, users evaluate which of the ordered actions they are presented with they prefer. 
+	
+	\item \textbf{Learn preferences $\hat{\beta_k}$ and SCM approximation parameters $\hat{W}$}. The model deployer then learns user preferences $\hat{\beta_k}$ and a linear approximation of the true SCM $\hat{W}$ using the optimisation presented in section \ref{section:cost_learning_formulation}.
+	
+	\item \textbf{Generate recourse using $\hat{\beta_k}$ and $\hat{W}$}. The model deployer then generates recourse $\mathbf{X}^*$ for the negatively classified users.
+	
+\end{enumerate}
+
 
 
 \section{Simple synthetic data setting}
@@ -32,7 +56,7 @@ Ground truth $\beta$: [0.5, 0.333, 0.1667]
 \end{figure}
 
 
-\subsection{Noiseless responses with perfect knowledge of the causal graph}.
+\subsection{Noiseless responses with perfect knowledge of the causal graph}
 
 Ground truth $\beta$: [0.5, 0.333, 0.1667] \\
 Learned $\beta$ : [0.4965, 0.3355, 0.1681]

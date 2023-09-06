@@ -1,19 +1,19 @@
 \chapter{Cost Learning} \label{chapter:cost_learning}
 
-At the beginning of chapter \ref{chapter:causal_recourse}, we noted that the cost function used in the literature is typically of the form $c(\boldsymbol{x}, \boldsymbol{x}') = (\boldsymbol{x} - \boldsymbol{x}')^2$. Chapter \ref{chapter:causal_recourse} dealt with one of the limitations of this cost function - that it does not take into account the downstream effects of changing one feature on other features. In this chapter, we deal with another limitation of cost functions of this form - they fail to take into account user preferences over how difficult to manipulate different features are. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort.
+At the beginning of chapter \ref{chapter:causal_recourse}, we noted that the cost function used in the literature is typically of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$. Chapter \ref{chapter:causal_recourse} dealt with one of the limitations of this cost function - that it does not take into account the downstream effects of changing one feature on other features. In this chapter, we deal with another limitation of cost functions of this form - they fail to take into account user preferences over how difficult to manipulate different features are. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort.
 
-There do exist standard cost functions which take into account user preference, for example a quadratic form cost function $c(\boldsymbol{x}, \boldsymbol{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.\comment{Explain how $\mathbf{M}$ encodes user preference} However, $\mathbf{M}$ must be selected in advance of generating recourse. In this chapter, we propose a methodology for \textit{learning} user preferences.
+There do exist standard cost functions which take into account user preference, for example a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.\comment{Explain how $\mathbf{M}$ encodes user preference} However, $\mathbf{M}$ must be selected in advance of generating recourse. In this chapter, we propose a methodology for \textit{learning} user preferences.
 
 \textbf{[TO RE-WRITE THE ABOVE, TAKING INTO ACCOUNT THE INTRODUCTION]}
 
 
 \section{Learning from Revealed Preferences}
 
-Revealed preference theory \citep{samuelsonNotePureTheory1938, samuelsonConsumptionTheoryTerms1948} is an economic theory that states that if a consumer if offered a bundle of goods $x$ and a bundle of goods $y$ both within a budget set $B$ and the consumer chooses $x$ over $y$, then $x$ is revealed preferred to $y$.\comment{Rewrite this and expand, potentially state was WARP and SARP are.} From the consumer's decision to purchase bundle $x$ over bundle $y$, the consumer \textit{reveals} their (normative) \textit{preferences} over $x$ and $y$.
+Revealed preference theory \citep{samuelsonNotePureTheory1938, samuelsonConsumptionTheoryTerms1948} is an economic theory that states that if a consumer if offered a bundle of goods $x$ and a bundle of goods $y$ both within a budget set $B$ and the consumer chooses $x$ over $y$, then $x$ is preferred to $y$.\comment{Rewrite this and expand, potentially state was WARP and SARP are.} From the consumer's decision to purchase bundle $x$ over bundle $y$, the consumer \textit{reveals} their (normative) \textit{preferences} over $x$ and $y$.
 
 We can use this idea to learn individuals' revealed preferences over feature mutability. Whilst humans are not able to describe their own preferences mathematically, they are able to express their preferences when given limited options to choose from. We propose to ask negatively classified individual a series of questions. In each question, individuals are asked to compare two sets of ordered actions $A^1$ and $A^2$ and responds with whichever one is least costly. If $A^1$ is preferred to $A^2$. We can use this information to parameterise a cost function which takes into account user preference.
 
-Whilst when recourse is finally provided after costs have been learned, it is provided in the form of an alternative vector of features $\boldsymbol{x}^*$, note that we propose to ask the individuals to compare two sets of ordered actions. This is because are many combinations of different actions and orderings that would result in the same alternative vector of features $\boldsymbol{x}^'$. The deployer of the model (i.e., the digital bank in the credit scoring setting) does not observe the which actions the individuals would take in order to change their feature values from $\boldsymbol{x}$ to $\boldsymbol{x}^'$. As the deployer of the model does not observe how much each feature would have been intervened upon, it becomes very difficult to learn how relatively mutable each feature is. \\
+Whilst when recourse is finally provided after costs have been learned, it is provided in the form of an alternative vector of features $\mathbf{x}^*$, note that we propose to ask the individuals to compare two sets of ordered actions. This is because are many combinations of different actions and orderings that would result in the same alternative vector of features $\mathbf{x}^'$. The deployer of the model (i.e., the digital bank in the credit scoring setting) does not observe the which actions the individuals would take in order to change their feature values from $\mathbf{x}$ to $\mathbf{x}^'$. As the deployer of the model does not observe how much each feature would have been intervened upon, it becomes very difficult to learn how relatively mutable each feature is. \\
 
 A demonstration of one of the pairwise comparisons that users are asked to evaluate are shown in Figure \ref{fig:comparison_ui}. We envision that users are asked to evaluate these comparisons in an online system, where they must answer the pairwise comparisons in order for recourse to be generated and presented to the users.
 
@@ -46,16 +46,16 @@ A demonstration of one of the pairwise comparisons that users are asked to evalu
 
 We assume that, \textit{on average}, users have perfect knowledge of the SCM\comment{justify this - feels a bit like an extension of rational choice theory except that it relates to the real world as opposed to their own preferences} when evaluating which of the sets of actions they find least costly. Knowledge of the underlying structural causal model is crucial when evaluating actions, as actions may have causal effects of other variables and will affect the cost of other actions. For the same user preferences, the cost of the same actions could have different costs if there is a different underlying structural causal model. Consider a two variable SCM with income causing savings. In the first case, income has a very large positive effect on savings, and the in second case, income has a small positive effect on savings. In both cases the actions are to first increase income by £10,000 and then increase savings by £10,000. The cost of increasing income is the same in both cases, but the cost of increase savings is lower in the first case, as there is a large downstream effect of the increase in income on savings, meaning the additional amount to save is lower, and therefore, less costly in the first case.
 
-\section{Cost Learning Formulation}
+\section{Cost Learning Formulation} \label{section:cost_learning_formulation}
 
-We now formulate the cost learning problem, where there are $N$ individuals who are each presented with $K$ pairwise comparisons. In each comparison, each individual compares two sets of ordered actions $(A^1, A^2)$. We record the response of the $n^{\text{th}}$ individual to their $k^{\text{th}}$ comparison as $y_{kn}$, which is defined below, where $\boldsymbol{x}_n$ represents the $n^{\text{th}}$ individuals' original features.
+We now formulate the cost learning problem, where there are $N$ individuals who are each presented with $K$ pairwise comparisons. In each comparison, each individual compares two sets of ordered actions $(A^1, A^2)$. We record the response of the $n^{\text{th}}$ individual to their $k^{\text{th}}$ comparison as $y_{kn}$, which is defined below, where $\mathbf{x}_n$ represents the $n^{\text{th}}$ individuals' original features.
 
 
 
 \begin{equation} \label{eq:paired_response}
 %	y_{kn} = \begin{cases}
-%		-1 & \text{if } c(\boldsymbol{x}_n, \boldsymbol{x}^1_{kn}) \leq c(\boldsymbol{x}_n \boldsymbol{x}^2_{kn}) \\
-%		+1 & \text{if }  c(\boldsymbol{x}_n, \boldsymbol{x}^1_{kn}) > c(\boldsymbol{x}_n, \boldsymbol{x}^2_{kn}) \\
+%		-1 & \text{if } c(\mathbf{x}_n, \mathbf{x}^1_{kn}) \leq c(\mathbf{x}_n \mathbf{x}^2_{kn}) \\
+%		+1 & \text{if }  c(\mathbf{x}_n, \mathbf{x}^1_{kn}) > c(\mathbf{x}_n, \mathbf{x}^2_{kn}) \\
 %	\end{cases}
 	y_{kn} = \begin{cases}
 		-1 & \text{if } A^1_{kn} \text{ preferred to } A^2_{kn} \\
@@ -67,52 +67,83 @@ We now formulate the cost learning problem, where there are $N$ individuals who 
 
 \subsection{Perfect Knowledge of the Structural Causal Model}
 
-Let us first consider the case where both the deployer of the model and the individuals have perfect knowledge of the structural causal model. In this case, the individuals have a ground truth cost function $\cost^G(\boldsymbol{x}, A|\beta, W)$ which is parameterised by $\beta$, how mutable each feature is and $W$, the parameters of the structural equations in the SCM. As the model deployer has perfect knowledge of the SCM, they do not need to learn $W$. As they are also aware of the actions being proposed to the individuals in each comparison, they also have $A$ available to them. Therefore, in this case, the only variable they need to learn is the relative mutability of each feature $\beta$.\\
-
-The model deployer's task is therefore to learn a $\beta$ that which would explain as many of the individuals' responses as possible. We denote the model deployers' predicted response as $\hat{y}_{kn}$, which is defined below, where $\lambda$ is a hyperparameter regularising for 'confidence' of the predictions. As true values $y_{kn} \in \{-1,1\}$, the $\tanh$ function is used to force the predicted values $\hat{y}_{kn}$ into $[-1,1]$.
+Let us first consider the case where both the deployer of the model and the users have perfect knowledge of the underlying SCM $\mathcal{M}$. In this case, the individual $k$ has a cost function $\cost(\mathbf{x}, A|\beta_k, \mathcal{F})$, parameterised by $\mathcal{F}$, the corresponding structural equations of the SCM $\mathcal{M}$ and $\beta_k$, a vector which represents how easily mutable each feature is. As the model deployer has perfect knowledge of the SCM, they do not need to learn (or approximate) $\mathcal{F}$. The model deployer's task become to learn a $\beta_i$ for each individual which represents each users' preferences (of how mutable each feature is) that explains as many of the individuals' responses as possible. We denote the model deployers' predicted response as $\hat{y}_{kn}$, which is defined below, where $\lambda$ is a hyperparameter regularising for `confidence' of the predictions. As true values $y_{kn} \in \{-1,1\}$, the hyperbolic tangent function is used to squash the predicted values $\hat{y}_{kn}$ into $[-1,1]$.
 
 \begin{equation} \label{eq:yhat_relaxation}
-	\hat{y}_{kn} = \tanh \Bigg(\lambda \Big(\cost(\boldsymbol{x}_n, A^1_{kn}|\beta, W) - \cost(\boldsymbol{x}_n, A^1_{kn}|\beta, W)\Big)\Bigg)
+	\hat{y}_{kn} = \tanh \Bigg(\lambda \Big(\cost(\mathbf{x}_n, A^1_{kn}|\beta_k, \mathcal{F}) - \cost(\mathbf{x}_n, A^2_{kn}|\beta_k, \mathcal{F})\Big)\Bigg)
 \end{equation}
 
 The model deployer's task can be achieved through the below objective, where there are $K$ individuals and $N$ pairwise comparisons and $\ell(y, \hat{y}) = \max[0, 1-y\hat{y}]$ represents the hinge loss.
 
 \begin{equation}
-	\argmin_\beta = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}) + \underbrace{\lambda ||\beta||_2}_{\text{L2 regularisation}}
+	\beta^* = \argmin_\beta \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}) + \underbrace{\lambda ||\beta_k||_2}_{\text{L2 regularisation}}
 \end{equation}
 
 This is an unconstrained optimised problem that can be optimised using gradient descent. In order to avoid overfitting to responses of the sample of the negatively classified individuals who answer the pairwise comparisons, L2 regularisation is also added to the objective function.
 
-\subsection{Imperfect Knowledge of the Structural Causal Model}
+\subsection{Linear Approximation of the Structural Causal Model}
 
-Now we consider the (more realistic) case where the model deployer does not have perfect knowledge of the structural causal model. In this case, the model deployer learns both the user preferences $\beta$ as well as the parameters of the structural equations $W$. The formula for the predicted responses $\hat{y}_{kn}$ remains unchanged from equation \ref{eq:yhat_relaxation} and we add $W$ in to the objective function as follows.
+Now we consider the (more realistic) case where the model deployer does not have perfect knowledge of the structural causal model. In this case, the model deployer learns both the user preferences $\beta_k$ as well as an approximation of the structural equations $\mathcal{F}$.\\
+
+
+In this case, model deployer knows neither the form of the structural equations $\mathcal{F}$ nor the parameters of the equations. For example, the true structural equations could be linear, as shown below for a three variable SCM.
+
+\begin{align} \label{eq:linear_scm_example}
+	x_1 & = u_1 & u_1 \sim N(\mu_1,\sigma_1^2) \\ \nonumber
+	x_2 & = ax_1 + u_2 & u_2 \sim N(\mu_2,\sigma_2^2) \\ \nonumber
+	x_3 & = bx_1 + cx_2 + u_3 & u_3 \sim N(\mu_3,\sigma_3^2) \\ \nonumber
+\end{align}
+
+The structural equations could also be a more complex non-linear set of equations. An example is shown below.
+
+\begin{align}
+	x_1 & = u_1 & u_1 \sim N(\mu_1,\sigma_1^2) \\ \nonumber
+	x_2 & = ax_1 + bx_1^2 + u_2 & u_2 \sim N(\mu_2,\sigma_2^2) \\ \nonumber
+	x_3 & = \frac{cx_1}{1 + \exp(dx_2)} + u_3 & u_3 \sim N(\mu_3,\sigma_3^2) \\ \nonumber
+\end{align}
+
+The model deployer knows neither the form of the equations nor the parameters (e.g, $a,b,c,d$ in the above example). As a solution to this problem, we learn a \textit{linear approximation} of the SCM\footnote{A linear approximation of the SCM is used in this thesis largely for its simplicity. However a more flexible specification of the approximation of the SCM, such as kernel ridge regression, could be used in future works.}.\\
+
+In the linear approximation of the SCM, each variable is modelled as a linear combination of the other variable. We can represent the parameters of the linear approximation of the SCM as a square matrix $W$, where each element of the matrix represents $\frac{\partial x_j}{\partial x_i}$. As each variable $x_j$ is a linear combination of the other variables $x_{\neg j}$, $\frac{\partial x_j}{\partial x_i}$ will be a scalar (and will be 0 if $x_j$ has no causal effect on $x_i$). For the linear SCM described in equation \ref{eq:linear_scm_example}, the parameters $W$ can be described as shown below. It can be thought of as a weighted adjacency matrix, where the weights are the marginal effects of $x_j$ on $x_i$.
 
 \begin{equation}
-	\argmin_{\beta, W} = \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}) + \underbrace{\lambda_1 ||\beta||_2 + \lambda_2||W||_2}_{\text{L2 regularisation}}
+	W = 
+	\begin{bmatrix}
+		1 & a & ab+c \\
+		0 & 1 & c \\
+		0 & 0 & 1
+	\end{bmatrix}
 \end{equation}
+
+With a linear approximation of the SCM, the model deployer's task is now to learn the parameters $W$ and user preferences $\beta_k$. We add $W$ in to the objective function as follows.
+
+\begin{equation}
+	\beta^*, W^* = \argmin_{\beta, W} \frac{1}{KN} \sum_{k=1}^K \sum_{n=1}^N \ell (y_{kn}, \hat{y}_{kn}) + \underbrace{\lambda_1 ||\beta_k||_2 + \lambda_2||W||_2}_{\text{L2 regularisation}}
+\end{equation}
+
+We additionally restrict $W$ such that the diagonal is fixed at 1 - meaning that an intervention of size $\delta_i$ on variable $i$ has a causal effect of $\delta_i$. For example, if we increased salary from £30,000 to £35,000 ($\delta_i=£5,000$), then income after the intervention is £35,000. It does not lead to downstream (causal) effects that result in salary changing to any value other than £35,000 ($x_i + \delta_i$).
 
 \subsection{Noisy Responses}
 
-In the two previous set-ups the model deployer learns $\beta$ (and $W$) from the responses of the negatively classified individuals, who have perfect knowledge of $\beta$ and $W$. However, in reality, often responses to such questions can be noisy and it is highly unlikely that individuals actually have perfect knowledge of the SCM. We now relax these two assumptions, first by assuming that individuals knowledge of the SCM up to some noise and second by adding some noise to the response that they report.\\
+In the two previous set-ups the model deployer learns $\beta_k$ (and $W$) from the responses of the negatively classified individuals, who have perfect knowledge of their own preferences $\beta_k$ and the true SCM $\mathcal{M}$. However, in reality, often responses to such questions can be noisy and it is highly unlikely that individuals actually have perfect knowledge of the SCM. We now relax these two assumptions. First, we assume that users only know the SCM up to some noise. This means that, when evaluating which of the sets of actions $A^1$ and $A^2$ they prefer, they assume that the downstream (causal) effect of each action within the set of actions is a noisy version of the true downstream effect. If we assume that this noise is drawn from a probability distribution with mean 0 then, \textit{on average}, users have perfect knowledge of the true SCM. Secondly, we assume that individuals additionally evaluate their preferences with some noise (they are not able to perfectly evaluate which of the sets of actions they would prefer perfectly given their noisy belief of the SCM as some noise is added to the decision making process).\\
 
-To add noise to individuals' knowledge of the SCM, we assume that, instead of $W$, each individual's cost function is parameterised by $\tilde{W}$, where $\tilde{W} = W + N(0, \sigma^2_W)$. To add noise to the responses, we add some Gaussian noise with mean 0 and standard deviation $\sigma_R$ to the ratio of the cost of actions $A^1$ to the cost of actions $A^2$. \comment{explain the relevance of having noise with expectation=0}
+To add noise to the users' knowledge of the SCM, after an intervention on $x_i$, we add noise to the other variables $x_{\neg i}$ after the prediction step in Abduction-Action-Prediction steps \citep{pearl2016causal} (see section \ref{section:scms} for an explanation of the Abduction-Action-Prediction steps). We assume that the noise is drawn from a Gaussian distribution with mean 0 and standard deviation $\sigma_F$. We denote the SCM that the users evaluate the effects of interventions with as $\tilde{\mathcal{M}}$ with associated structural equations $\tilde{\mathcal{F}}$.\\
+
+To add noise the the users' evaluation of their own preferences, we calculate the ratio of the costs of the sets of actions $A^1$ and $A^2$ and then add some noise. Again, we assume that this noise is Gaussian with mean 0 and with standard deviation $\sigma_B$. Now, the response of the users is defined as follows.
 
 \begin{align}
-	r & = \frac{\cost(\boldsymbol{x}_n, A^1_{kn} | \beta, \tilde{W})}{\cost(\boldsymbol{x}_n, A^2_{kn} | \beta, \tilde{W})} \\ \nonumber
+	r & = \frac{\cost(\mathbf{x}_n, A^1_{kn} | \beta_k, \tilde{\mathcal{F}})}{\cost(\mathbf{x}_n, A^2_{kn} | \beta_k, \tilde{\mathcal{F}})} + N(0, \sigma^2_B) \\ \nonumber
 	y_{kn} & = \begin{cases}
-			-1 & \text{if } r + N(0, \sigma^2_R) \leq 1 \\
-			+1 & \text{if } r + N(0, \sigma^2_R) > 1 \\
+			-1 & \text{if } r \leq 1 \\
+			+1 & \text{if } r > 1 \\
 			\end{cases}
 \end{align}
 
-With these updated noisy responses, the optimisation problem still remains the same from the point of the model deployer. However, given the noisy responses, the role of the regularisation becomes more important.
+With these updated noisy responses, the optimisation problem still remains the same from the point of the model deployer. However, given the added noise, the responses of users may not always reflect the true SCM and true preferences of the users. Therefore, the role of regularisation becomes more important.
 
 \section{Cost Function}
-In each of the following subsections, outlining the different cost functions used. Currently have implemented weighted squared costs (weights are feature mutability $\beta$).
 
-\subsection{Weighted Squared Costs}
-
-Let the individual cost function take the below form, where $\beta \in \mathbb{R}^D$ is a vector which expresses the mutability of each feature $i$. The order of the interventions in $A$ does not matter in this case, as the cost function only depends on $\delta$, not $\boldsymbol{x}$ (see \Cref{sequential_proposition}).
+The cost function of actions $A$ and user preferences over feature mutability $\beta_k$ for the individual $k$ takes the below form, where $\beta \in \mathbb{R}^D$ and $D$ is the number of features\footnote{The order of the interventions in $A$ does not matter in this case, as the cost function only depends on $\delta$, not $\mathbf{x}$ (see \Cref{sequential_proposition})}. Squaring the intervention $\delta_i$ on variable $i$ has several desirable properties. Notably that (a), the cost is always greater than or equal to 0, (b) an intervention of $\delta_i=0$ results is a cost of 0 (i.e., doing nothing has no associated cost) and (c) larger interventions results in (polynomially) increasing costs, meaning that an intervention of $2a$ on variable $x_i$ has more than twice the cost of $a$.
 
 \begin{equation}
 	\texttt{cost}(A, \beta) = \sum_{i=1}^D \beta_i \delta^2_i

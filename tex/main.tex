@@ -18,6 +18,9 @@
 % Microtyping
 \usepackage{microtype}
 
+% positioning
+\usepackage{eso-pic}
+
 %%% Fancy page setup
 \usepackage{lastpage}                                                                   % Has a macro that defines the total number of pages.
 \usepackage{fancyhdr}                                                                   % Controls the setup of the page.
@@ -27,7 +30,7 @@
 \fancyhead[L]{}                                                 % Overwrites the default header so it's not fully capital.
 \fancyhead[R]{\nouppercase{\leftmark}}                                                  % Overwrites the default header so it's not fully capital.
 \fancyfoot[C]{}                                                                         % Set the center of the  to be empty.
-\fancyfoot[L]{\thepage\ of\ \pageref*{LastPage}} % Page number counter. 
+\fancyfoot[R]{\thepage\ of\ \pageref*{LastPage}} % Page number counter. 
 \renewcommand{\headrulewidth}{0.4pt}                                                    % Sets the default header underline thickness.
 \renewcommand{\footrulewidth}{0.4pt}                                                    % Sets the default footer overline thickness.
 \renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}}                           % Changes fancyheader[R] to "<Chapter Number>. <Chapter Title>" from "CHAPTER <Chapter Number>. <CHAPTER TITLE>". This saves space and looks nicer.
@@ -164,13 +167,13 @@
 %%% Replacement fields
 % Note - make sure that you use the space command `\ ` between each word here. newcommand treats spaces in the definitions as terminations.
 \newcommand{\authorName}{\textbf{Rory Creedon}}                                         % Replace the \textbf command and its contents with your name.
-\newcommand{\primarySupervisor}{\textbf{Colin Rowat}}                           % Replace the \textbf command and its contents with the name of your primary supervisor.
-\newcommand{\secondarySupervisor}{\textbf{Matthew Caldwell}}                       % Replace the \textbf command and its contents with the name of your secondary supervisor.
+\newcommand{\primarySupervisor}{Colin Rowat}                           % Replace the \textbf command and its contents with the name of your primary supervisor.
+\newcommand{\secondarySupervisor}{Matthew Caldwell}                       % Replace the \textbf command and its contents with the name of your secondary supervisor.
 \newcommand{\examiningCommittee}{\textbf{EXAMINING COMMITTEE}}                         % Replace the \textbf command and its contents with the name of the examining comittee.
 \newcommand{\wordCount}{\textbf{WORD COUNT}}                                           % Replace the \textbf command and its contents with the word count.
 \newcommand{\submissionDate}{\textbf{11\textsuperscript{th} September 2023}}                                 % Replace the \textbf command and its contents with the submission date.
 \newcommand{\thesisTitle}{\textbf{Learning from Revealed Algorithmic Recourse Preferences}}                                      % Replace the \textbf command and its contents with the title of your thesis.
-\newcommand{\department}{\textbf{Department of Computer Science}}                                        % Replace the \textbf command and its contents with the name of your department.
+\newcommand{\department}{Department of Computer Science}                                        % Replace the \textbf command and its contents with the name of your department.
 \newcommand{\signatureFile}{example-image-a}                                            % Replace the \textbf command and its contents with the directory of the image of your signature.
 
 % Argmin and argmax

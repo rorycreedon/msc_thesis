@@ -57,7 +57,7 @@ class TrueCost:
         else:
             S = torch.eye(self.X.shape[1])[torch.argsort(self.fixed_ordering)].to(int)
 
-        cost = torch.zeros(self.X.shape[0])
+        cost = torch.zeros(self.X.shape[0], device=self.device)
         U = self.scm.abduction(X_prime)
 
         for i in range(self.X.shape[1]):
