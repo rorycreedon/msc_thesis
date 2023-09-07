@@ -43,8 +43,11 @@ class CostLearner:
         Generate random actions for the pairwise comparisons
         :return: None
         """
-        self.actions = torch.rand(
-            2, self.n_comparisons, self.X.shape[0], self.X.shape[1], dtype=torch.float64
+        self.actions = self.X + torch.normal(
+            0,
+            1,
+            size=(2, self.n_comparisons, self.X.shape[0], self.X.shape[1]),
+            dtype=torch.float64,
         )
         N, D = self.X.shape
         self.ordering = torch.empty(2, self.n_comparisons, N, D, dtype=torch.long)
@@ -272,15 +275,15 @@ class CostLearner:
 
         vprint("Learning beta...")
 
-        pred_outcomes = self.loss(
-            learned_beta,
-            tanh_param=tanh_param,
-            W_adjacency=learned_W,
-            return_outcomes=True,
-        )
-        vprint(
-            f"Initial Accuracy: {torch.sum(pred_outcomes == self.outcomes) / (self.outcomes.shape[0] * self.outcomes.shape[1])}"
-        )
+        # pred_outcomes = self.loss(
+        #     beta=learned_beta,
+        #     tanh_param=tanh_param,
+        #     W_adjacency=learned_W,
+        #     return_outcomes=True,
+        # )
+        # vprint(
+        #     f"Initial Accuracy: {torch.sum(pred_outcomes == self.outcomes) / (self.outcomes.shape[0] * self.outcomes.shape[1])}"
+        # )
 
         # Training loop
         for epoch in range(max_epochs):
@@ -342,10 +345,11 @@ class CostLearner:
 if __name__ == "__main__":
     # X, scm = gen_toy_data(10_000)
     N = 1_000
-    SCM = NonLinearSCM(N)
+    SCM = SimpleSCM(N)
     SCM.simulate_data()
     y_pred, X_neg, clf = SCM.classify_data()
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
+    N_neg = X_neg.shape[0]
 
     # Ground truth beta
     beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
@@ -361,7 +365,7 @@ if __name__ == "__main__":
         n_comparisons=50,
         ground_truth_beta=beta_ground_truth,
         scm=SCM.scm,
-        scm_known=False,
+        scm_known=True,
     )
     cost_learner.eval_random_actions(scm_noise=0, eval_noise=0)
     cost_learner.learn(verbose=True, lr=1e-3, l2_reg=0.1, max_epochs=2_000)

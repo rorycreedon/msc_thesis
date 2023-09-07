@@ -69,7 +69,10 @@ class CausalRecourse:
             self.beta = beta.to(self.device)
         assert torch.min(self.beta) >= 0, "Beta must be greater than 0"
         # normalise beta
-        self.beta = self.beta / torch.sum(self.beta, dim=1).unsqueeze(-1)
+        if self.beta.ndim == 1:
+            self.beta = self.beta / torch.sum(self.beta)
+        else:
+            self.beta = self.beta / torch.sum(self.beta, dim=1).unsqueeze(-1)
 
         # Ordering
         if self.learn_ordering is False:
@@ -128,23 +131,23 @@ class CausalRecourse:
                 X_prime = self.scm.prediction(U)
 
         else:
-            W_temp = self.W_adjacency + torch.eye(self.W_adjacency.shape[0]).to(
-                self.device
-            )
+            W_temp = self.W_adjacency + torch.eye(
+                self.W_adjacency.shape[0], dtype=torch.float64
+            ).to(self.device)
 
             for i in range(self.X.shape[1]):
                 cost += torch.sum(A**2 * S[:, i] * self.beta, dim=1)
                 assert (cost >= 0).all(), "Cost should be positive"
-                X_prime += ((W_temp * S[:, i].unsqueeze(-1)) @ A.unsqueeze(-1)).squeeze(
-                    -1
-                )
+                # X_prime += ((W_temp * S[:, i].unsqueeze(-1)) @ A.unsqueeze(-1)).squeeze(
+                #     -1
+                # )
+                X_prime += (A * S[:, i]) @ W_temp
 
         return X_prime, cost
 
     def recover_interventions(self, A: torch.Tensor, O: torch.Tensor):
         """
         Recover the interventions from A and O
-        THIS WORKS ON THE ASSUMPTION THAT WE HAVE PERFECT KNOWLEDGE OF THE ADJACENCY MATRIX.s
         :param A: The actions to take for each variable (after downstream interventions)
         :param O: The ordering of the features
         :return:
@@ -216,7 +219,7 @@ class CausalRecourse:
         ), "Classifier margin must be greater than or equal to 0"
 
         # Initialise parameters
-        lambda1 = torch.rand(self.X.shape[0], dtype=torch.float64).to(self.device)
+        lambda1 = torch.zeros(self.X.shape[0], dtype=torch.float64).to(self.device)
         lambda1.requires_grad = True
         A = torch.zeros(self.X.shape, dtype=torch.float64).to(self.device)
         A.requires_grad = True

@@ -23,7 +23,10 @@ class TrueCost:
         self.X = X.to(self.device)
         self.X_final = X_final.to(self.device)
         self.scm = scm
-        self.beta = (beta / torch.sum(beta, dim=1).unsqueeze(-1)).to(self.device)
+        if beta.ndim == 1:
+            self.beta = (beta / torch.sum(beta)).to(self.device)
+        else:
+            self.beta = (beta / torch.sum(beta, dim=1).unsqueeze(-1)).to(self.device)
         self.learn_ordering = learn_ordering
         self.sorter = sorter
         self.sorter.device = self.device

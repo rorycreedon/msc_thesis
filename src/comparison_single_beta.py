@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 import argparse
 import torch
-import matplotlib.pyplot as plt
-import matplotlib
 from typing import Union, List
 import logging
 import os
@@ -19,7 +17,7 @@ def setup_logging(args) -> None:
 
     # Set up logging
     logging.basicConfig(
-        filename=f"logs/{args.scm_name}SCM_comparison_results.log",
+        filename=f"logs/{args.scm_name}SCM_comparison_single_beta.log",
         filemode="w",
         format="%(name)s - %(levelname)s - %(message)s",
         level=logging.INFO,
@@ -85,10 +83,13 @@ def gen_recourse(
     X_prime, order, actions, cost, pred = recourse_gen.gen_recourse(
         classifier_margin=0.02,
         max_epochs=max_epochs,
-        verbose=False,
+        verbose=True,
         lr=lr,
         format_as_df=False,
     )
+
+    print(f"cost - {cost}")
+    print(f"pred - {pred}")
 
     # Check to see that constraint is satistfied
     logging.info(
@@ -188,7 +189,7 @@ def eval_true_cost(
         X_neg=X_neg,
         W_classifier=W_classifier,
         b_classifier=b_classifier,
-        lr=args.lr * 2,
+        lr=args.lr,
         sorter=sorter,
         max_epochs=args.max_epochs,
         use_scm=use_scm,
@@ -218,10 +219,10 @@ def eval_true_cost(
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--N", type=int, default=2_000)
+    parser.add_argument("--N", type=int, default=5_000)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--learn_ordering", type=bool, default=True)
-    parser.add_argument("--tau", type=float, default=0.5)
+    parser.add_argument("--tau", type=float, default=1)
     parser.add_argument("--max_epochs", type=int, default=10_000)
     parser.add_argument("--scm_noise", type=float, default=0)
     parser.add_argument("--eval_noise", type=float, default=0)
@@ -229,6 +230,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup_logging(args)
+
+    # Set seed
+    np.random.seed(0)
+    torch.manual_seed(0)
 
     N = args.N
 
@@ -253,19 +258,16 @@ if __name__ == "__main__":
     b_classifier = clf.intercept_[0]
 
     # Ground truth beta
-    beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
-        X_neg.shape[0], 1
-    )
-    beta_ground_truth += (
-        torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64) / 5
-    )
-    beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
+    beta_ground_truth = torch.rand(X_neg[1].shape, dtype=torch.float64)
+    beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth)
+
+    print(f"X - {X_neg}")
 
     # Comparison list
-    comparison_list = [5, 10, 20, 50]
+    comparison_list = [5, 10, 20, 50, 100]
 
     # Results array
-    results = np.zeros((N_neg,))
+    results = np.zeros((len(comparison_list),))
 
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -288,8 +290,36 @@ if __name__ == "__main__":
 
     logging.info(f"Ground truth cost: {cost_ground_truth}")
 
+    # IDENTITY W and RANDOM BETA
+    beta_random = torch.rand(X_neg[1].shape, dtype=torch.float64)
+    beta_random = beta_random / torch.sum(beta_random)
+
+    W_random = torch.eye(X_neg.shape[1], dtype=torch.float64)
+    # set diagonal to 0
+    # W_random = W_random * (1 - torch.eye(X_neg.shape[1], dtype=torch.float64))
+
+    cost_random = eval_true_cost(
+        X_neg=X_neg,
+        use_scm=False,
+        beta=beta_random,
+        W_classifier=W_classifier,
+        b_classifier=b_classifier,
+        beta_ground_truth=beta_ground_truth,
+        learn_ordering=args.learn_ordering,
+        sorter=SoftSort(hard=True, tau=args.tau, device=device),
+        lr=args.lr,
+        max_epochs=20_000,
+        verbose=True,
+        scm=SCM.scm,
+        W_adjacency=W_random,
+    )
+
+    logging.info(
+        f"Cost increase with random beta and W: {100*((cost_random/cost_ground_truth) -1)}%"
+    )
+
     # Loop through list of comparisons
-    for n_comparisons in comparison_list:
+    for i, n_comparisons in enumerate(comparison_list):
         # Learn beta
         learned_beta, learned_W, loss_list = learn_beta(
             X_neg=X_neg,
@@ -300,15 +330,15 @@ if __name__ == "__main__":
             n_comparisons=n_comparisons,
             max_epochs=args.max_epochs,
             lr=args.lr,
-            l2_reg=0.1,
+            l2_reg=0.01,
             tanh_param=20,
-            verbose=False,
+            verbose=True,
         )
 
         # Calculate cost
         cost = eval_true_cost(
             X_neg=X_neg,
-            use_scm=True,
+            use_scm=False,
             beta=learned_beta,
             W_classifier=W_classifier,
             b_classifier=b_classifier,
@@ -317,14 +347,15 @@ if __name__ == "__main__":
             sorter=SoftSort(hard=True, tau=args.tau, device=device),
             lr=args.lr,
             max_epochs=20_000,
-            verbose=False,
+            verbose=True,
             scm=SCM.scm,
+            W_adjacency=learned_W,
         )
 
         logging.info(
             f"Cost increase with {n_comparisons} comparisons: {100*((cost/cost_ground_truth) -1)}%"
         )
-        results[n_comparisons] = (cost / cost_ground_truth) - 1
+        results[i] = (cost / cost_ground_truth) - 1
 
     # Save results
-    np.save(f"results/{args.scm_name}SCM_comparison_results.npy", results)
+    np.save(f"results/{args.scm_name}SCM_comparison_single_beta.npy", results)

@@ -5,7 +5,7 @@ In this chapter, we evaluate how effective our learned cost function is, which i
 \begin{align} \label{eq:cost_function_experiments}
 	\cost(A, \beta_k, \mathcal{F}) & = \sum_{i=1}^D \delta_i \beta_{ki}^2 \\ \nonumber
 	A & = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}_i:=\mathbf{x}_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\} \\ \nonumber
-	\mathbf{x}^{\text{PCF}} & = \mathbb{I}_{i \in I} \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{PCFF}}_i) - f_i(\textbf{pa}_i) \bigg)
+	\mathbf{x}^{\text{PCF}} & = \mathbb{I}_{i \in I} \boldsymbol{\delta}_i + \bigg( \mathbf{x}_i + f_i(\textbf{pa}^{\text{PCF}}_i) - f_i(\textbf{pa}_i) \bigg)
 \end{align}
 
 \section{End-to-End Methodology}
@@ -36,22 +36,82 @@ The end to end methodology for generating recourse with a learned cost is shown 
 
 \section{Synthetic Data}
 
-We create synthetic SCMs from which we sample our 
+We create synthetic SCMs, from which we sample our data $\mathbf{X}$. We simulate two different SCMs, the first being a linear SCM and the second a non-linear SCM. In both cases, we assign individuals to have the same randomly generated feature mutability $\beta$ plus some noise. This means that individuals tend to have similar preferences, but do not have the same preferences.
+
+\subsection{Linear SCM}
+
+Shown below are the structural equations of the linear SCM $\mathcal{M}_{\text{LIN}}$ as well as the associated causal graph.
 
 \begin{align}
 	x_1 & = u_1 & u_1 \sim N(0,1) \\ \nonumber
-	x_2 & = 0.5x_1 + u_2 & u_2 \sim N(0,1) \\ \nonumber
-	x_3 & = 0.2x_1 + 0.3x_2 + u_3 & u_3 \sim N(0,0.5) \\ \nonumber
+	x_2 & = u_2 + 0.5x_1 & u_2 \sim N(0,1) \\ \nonumber
+	x_3 & = u_3 + 0.2x_1 + 0.3x_2 & u_3 \sim N(0,0.5) \\ \nonumber
 	y   & \sim \text{Bernoulli}(\sigma(0.1x_1 + 0.2x_2 + 0.3x_3))
 \end{align}
-
-Ground truth $\beta$: [0.5, 0.333, 0.1667]
-
 
 \begin{figure}[!htb]
 	\centering
 	\includegraphics[width=0.4\linewidth]{images/draw.io/toy_scm.png}
-	\caption{Simple SCM}
+	\caption{Linear SCM $\mathcal{M}_{\text{LIN}}$}
+	\label{fig:simple_scm}
+\end{figure}
+
+\subsection{Non-Linear SCM}
+
+Shown below are the structural equations of the non-linear SCM $\mathcal{M}_{\text{NL}}$ as well as the associated causal graph.
+
+\begin{align}
+	x_1 & = u_1 & u_1 \sim N(0,1) \\ \nonumber
+	x_2 & = u_2 - \frac{2}{1 + x_1^2} & u_2 \sim N(0,1) \\ \nonumber
+	x_3 & = u_3 + 0.2x_1 + 0.01x^2_2 & u_3 \sim N(0,0.5) \\ \nonumber
+	x_4 & = u_4 + 2x_3 + 3x_1x_2 & u_4 \sim N(0,0,5) \\ \nonumber
+	x_5 & = u_5 + 0.4x_1 & u_5 \sim N(0,0.5) \\ \nonumber
+	y   & \sim \text{Bernoulli}(\sigma(0.1x_1 + 0.2x_2 + 0.3x_3 + 0.4x_4 + 0.5x_5))
+\end{align}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=0.5\linewidth]{images/draw.io/non_linear_scm.png}
+	\caption{Non-Linear SCM $\mathcal{M}_{\text{NL}}$}
+	\label{fig:non_linear_scm}
+\end{figure}
+
+
+\section{Evaluation Criteria}
+
+To how useful the learned user preferences $\hat{\beta_k}$ and SCM approximation parameters $\hat{W}$ are, we need to be able to evaluate $\cost(\mathbf{x,x}^*)$, where $\mathbf{x}^*$ represents the recourse generated. To do this, we propose simply minimise the squared distance between the recourse $\mathbf{x}^*$ and $\mathbf{x}'$, which represents the parametric counterfactual from ordered actions $A$ under the true SCM. The objective function that is optimised is shown below.
+
+\begin{equation}
+	A^* = \argmin_{A} (\mathbf{x}^* - \mathbf{x}')^2
+\end{equation}
+
+where
+
+\begin{align}
+	A & = \big\{(\mathbf{S}, \text{do} \{\mathbf{x}'_i:=\mathbf{x}'_i + \boldsymbol{\delta}_i\}_{i=1, \ldots, D})\big\} \\ \nonumber
+	{\mathbf{x}'}^{\text{PCF}} & = \mathbb{I}_{i \in I} \boldsymbol{\delta}_i + \bigg( \mathbf{x}'_i + f_i(\textbf{pa}^{\text{PCF}}_i) - f_i(\textbf{pa}_i) \bigg)
+\end{align}
+
+This can be optimised using gradient descent. Once we have obtained ordered actions $A^*$ that lead to our recourse $\mathbf{x}^*$ under the true SCM, we can calculate $\cost(\mathbf{x,x}')$ as $\cost(A^*, \beta_k, \mathcal{F})$ as defined in equation $\ref{eq:cost_function_experiments}$, where $\beta_k$ represents the true user preferences and $\mathcal{F}$ are the true structural equations.
+
+\section{Results}
+
+In this section, we present the results of the learned cost function on the two SCMs described in the previous section. In all the experiments conducted in this section, we simulate 2,000 individuals from the SCMs, which are then classified either positively or negatively.
+
+\subsection{Linear SCM}
+
+\subsection{Non-Linear SCM}
+
+
+
+================================================
+
+[TO CLEAN UP]
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[scale=1]{images/simpleSCM_comparison_results.png}
+	\caption{Comparison of the average cost of recourse for learned costs functions compared to the ground truth cost function for the Simple SCM.}
 	\label{fig:simple_scm}
 \end{figure}
 
@@ -77,6 +137,7 @@ Learned $W$: $\begin{bmatrix}
 	0.0033 & 0 & 0.3221 \\
 	0.0008 & 0.0086 & 0
 \end{bmatrix}$
+
 
 
 \subsection{Noisy responses}
