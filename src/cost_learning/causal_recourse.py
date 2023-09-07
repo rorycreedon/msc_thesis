@@ -341,7 +341,7 @@ if __name__ == "__main__":
     N = 1000
 
     # Generate data from SCM
-    SCM = SimpleSCM(N)
+    SCM = NonLinearSCM(N)
     SCM.simulate_data()
 
     # Classify data

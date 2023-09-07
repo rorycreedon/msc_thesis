@@ -342,21 +342,24 @@ class CostLearner:
 if __name__ == "__main__":
     # X, scm = gen_toy_data(10_000)
     N = 1_000
-    SCM = SimpleSCM(N)
+    SCM = NonLinearSCM(N)
     SCM.simulate_data()
     y_pred, X_neg, clf = SCM.classify_data()
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
 
-    ground_truth_beta = torch.tensor([7, 2, 1], dtype=torch.float64).repeat(
+    # Ground truth beta
+    beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
         X_neg.shape[0], 1
     )
-    # add noise
-    ground_truth_beta = torch.abs(torch.normal(0, 1, size=ground_truth_beta.shape))
+    beta_ground_truth += (
+        torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64) / 5
+    )
+    beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
 
     cost_learner = CostLearner(
         X=X_neg,
-        n_comparisons=10,
-        ground_truth_beta=ground_truth_beta,
+        n_comparisons=50,
+        ground_truth_beta=beta_ground_truth,
         scm=SCM.scm,
         scm_known=False,
     )

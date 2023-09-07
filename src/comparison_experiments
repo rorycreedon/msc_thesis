@@ -19,7 +19,7 @@ def setup_logging(args) -> None:
 
     # Set up logging
     logging.basicConfig(
-        filename=f"logs/{args.scm}SCM_noise_results.log",
+        filename=f"logs/{args.scm}SCM_comparison_results.log",
         filemode="w",
         format="%(name)s - %(levelname)s - %(message)s",
         level=logging.INFO,
@@ -128,8 +128,7 @@ def learn_beta(
 
     # Convert to torch tensors
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
-    if type(ground_truth_beta) == np.ndarray:
-        ground_truth_beta = torch.tensor(ground_truth_beta, dtype=torch.float64)
+    ground_truth_beta = torch.tensor(ground_truth_beta, dtype=torch.float64)
 
     # GENERATE ALTERNATIVE ACTIONS AND ORDERINGS
     beta_learner = CostLearner(
@@ -214,49 +213,6 @@ def eval_true_cost(
     return torch.mean(cost).detach().item()
 
 
-def plot(W_range, e_range, results, title):
-    # Matplotlib setup
-    plt.rcParams["savefig.dpi"] = 300
-    matplotlib.rcParams["font.family"] = "serif"
-    matplotlib.rcParams["font.serif"] = "cmr10"
-    matplotlib.rcParams["mathtext.fontset"] = "cm"
-    matplotlib.rcParams["axes.unicode_minus"] = False
-    matplotlib.rcParams["font.size"] = "10"
-
-    results_mean = np.mean(results, axis=0) * 100  # Convert to percentages
-
-    # Create meshgrid for the surface plot
-    W_mesh, e_mesh = np.meshgrid(W_range, e_range)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
-
-    ax.plot_surface(
-        W_mesh,
-        e_mesh,
-        results_mean,
-        cmap="RdBu_r",
-        linewidth=0,
-        antialiased=True,
-        shade=True,
-    )
-
-    ax.set_ylabel(r"$W$ noise (std dev)", labelpad=5)  # Adjust space for y-axis label
-    ax.set_xlabel(
-        "Evaluation noise (std dev)", labelpad=5
-    )  # Adjust space for x-axis label
-    ax.set_zlabel("Cost Increase (%)", labelpad=5)  # Adjust space for z-axis label
-    ax.set_title("Percentage Increase in Average Cost vs Ground Truth SCM")
-
-    # Add percentage signs to the z-axis ticks
-    ax.zaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%1.0f%%"))
-
-    fig.set_size_inches(6.3, 4)
-    fig.show()
-    # save plot
-    fig.savefig(f"plots/{title}.png")
-
-
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
@@ -265,10 +221,8 @@ if __name__ == "__main__":
     parser.add_argument("--learn_ordering", type=bool, default=True)
     parser.add_argument("--tau", type=float, default=0.5)
     parser.add_argument("--max_epochs", type=int, default=10_000)
-    parser.add_argument("--num_trials", type=int, default=5)
-    parser.add_argument("--num_levels", type=int, default=10)
-    parser.add_argument("--max_noise", type=float, default=1)
-    parser.add_argument("--scm", type=str, default="simple")
+    parser.add_argument("--scm_noise", type=float, default=0)
+    parser.add_argument("--eval_noise", type=float, default=0)
     args = parser.parse_args()
 
     setup_logging(args)
@@ -296,93 +250,65 @@ if __name__ == "__main__":
     b_classifier = clf.intercept_[0]
 
     # Ground truth beta
-    beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
-        X_neg.shape[0], 1
-    )
-    beta_ground_truth += (
-        torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64) / 5
-    )
-    beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
+    beta_ground_truth = np.random.uniform(0, 1, size=(X_neg.shape))
+    beta_ground_truth = beta_ground_truth / np.sum(beta_ground_truth, axis=1)[:, None]
+
+    # Comparison list
+    comparison_list = [5, 10, 20, 50]
+
+    # Results array
+    results = np.zeros((N_neg, 2))
 
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Ground truth cost
-    cost_ground_truth = eval_true_cost(
-        X_neg=X_neg,
-        use_scm=True,
-        beta=beta_ground_truth,
-        W_classifier=W_classifier,
-        b_classifier=b_classifier,
-        beta_ground_truth=beta_ground_truth,
-        learn_ordering=args.learn_ordering,
-        sorter=SoftSort(hard=True, tau=args.tau, device=device),
-        lr=args.lr,
-        max_epochs=20_000,
-        verbose=False,
-        scm=SCM.scm,
-    )
+    for scm_name in ["simple", "nonlinear"]:
+        if scm_name == "simple":
+            SCM = SimpleSCM(N)
+        elif scm_name == "nonlinear":
+            SCM = NonLinearSCM(N)
 
-    logging.info(f"Ground truth cost: {cost_ground_truth}")
+        logging.info(f"SCM - {scm_name}")
+        logging.info("====================================")
 
-    results = np.empty((args.num_trials, args.num_levels, args.num_levels))
+        SCM.simulate_data()
 
-    # LOOP THROUGH DIFFERENT noise levels
-    scm_noise_levels = np.linspace(0, args.max_noise, args.num_levels)
-    eval_noise_levels = np.linspace(0, args.max_noise, args.num_levels)
+        # Classify data
+        y_pred, X_neg, clf = SCM.classify_data()
+        N_neg = X_neg.shape[0]
 
-    for n in range(args.num_trials):
-        for i, scm_noise in enumerate(scm_noise_levels):
-            for j, e_noise in enumerate(eval_noise_levels):
-                logging.info(
-                    f"scm_noise : {scm_noise} | Eval noise: {e_noise} | Trial: {n}"
-                )
+        logging.info(f"{N} individuals")
+        logging.info(f"{N_neg} negatively classified individuals")
 
-                # Learn beta
-                learned_beta, learned_W, loss_list = learn_beta(
-                    X_neg=X_neg,
-                    ground_truth_beta=beta_ground_truth,
-                    scm=SCM.scm,
-                    eval_noise=e_noise,
-                    scm_noise=scm_noise,
-                    n_comparisons=5,
-                    max_epochs=args.max_epochs,
-                    lr=args.lr,
-                    l2_reg=0.1,
-                    tanh_param=20,
-                    verbose=False,
-                )
+        # Classification weights
+        W_classifier = np.squeeze(clf.coef_)
+        b_classifier = clf.intercept_[0]
 
-                if args.scm == "simple":
-                    logging.info(f"Learned W: {learned_W}")
+        # Ground truth beta
+        beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
+            X_neg.shape[0], 1
+        )
+        beta_ground_truth += (
+            torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64) / 5
+        )
+        beta_ground_truth = (
+            beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
+        )
 
-                # Generate recourse
-                cost = eval_true_cost(
-                    X_neg=X_neg,
-                    use_scm=False,
-                    W_adjacency=learned_W,
-                    W_classifier=W_classifier,
-                    b_classifier=b_classifier,
-                    beta=learned_beta,
-                    beta_ground_truth=beta_ground_truth,
-                    learn_ordering=args.learn_ordering,
-                    sorter=SoftSort(hard=True, tau=args.tau, device=device),
-                    lr=args.lr,
-                    max_epochs=20_000,
-                    verbose=False,
-                    scm=SCM.scm,
-                )
-                logging.info(
-                    f"{round(100 * ((cost / cost_ground_truth) - 1), 2)}% increase in cost"
-                )
+        # Ground truth cost
+        cost_ground_truth = eval_true_cost(
+            X_neg=X_neg,
+            use_scm=True,
+            beta=beta_ground_truth,
+            W_classifier=W_classifier,
+            b_classifier=b_classifier,
+            beta_ground_truth=beta_ground_truth,
+            learn_ordering=args.learn_ordering,
+            sorter=SoftSort(hard=True, tau=args.tau, device=device),
+            lr=args.lr,
+            max_epochs=20_000,
+            verbose=False,
+            scm=SCM.scm,
+        )
 
-                print(f"cost - {cost}")
-                results[n, i, j] = (cost / cost_ground_truth) - 1
-
-    # Save file
-    np.save(f"results/{args.scm}SCM_noise_results", results)
-
-    # Plot
-    plot(
-        scm_noise_levels, eval_noise_levels, results, title=f"{args.scm}SCM_noise_plot"
-    )
+        logging.info(f"Ground truth cost: {cost_ground_truth}")

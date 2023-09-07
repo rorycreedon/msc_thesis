@@ -22,7 +22,7 @@ The end to end methodology for generating recourse with a learned cost is shown 
 \begin{enumerate}
 	\item \textbf{Classify individuals}. Individuals with features $\mathbf{X}$ are assessed by a classifier and are classified either positively (e.g., loan approved, admission acceptance) or negatively (e.g., loan rejected, admission rejected). In this thesis, logistic regression has been used, largely for simplicity. However, as an augmented Lagrangian gradient descent optimisation is used to generate recourse (see section \ref{section:generating_recourse}), any differentiable classifier could be used instead of logistic regression.
 	
-	\item \textbf{Generate ordered actions to evaluate}. We randomly generate actions for each negatively classified individual, which are centred around their features $\mathbf{X}$ and associated randomly generated orderings. This is another area for future work, where an online or Bayesian approach could be used to generate recourse actions in order to maximise information gain, such as the approach used in \textcite{detoniPersonalizedAlgorithmicRecourse2023}.
+	\item \textbf{Generate ordered actions to evaluate}. We randomly generate actions for each negatively classified individual and associated randomly generated orderings. This is another area for future work, where an online or Bayesian approach could be used to generate recourse actions in order to maximise information gain, such as the approach used in \textcite{detoniPersonalizedAlgorithmicRecourse2023}.
 	
 	\item \textbf{Users evaluate ordered actions}. Using the cost function described in equation \ref{eq:cost_function_experiments} with noisy user preferences $\tilde{\beta_k}$ and noisy SCM $\tilde{\mathcal{F}}$, users evaluate which of the ordered actions they are presented with they prefer. 
 	
@@ -34,9 +34,9 @@ The end to end methodology for generating recourse with a learned cost is shown 
 
 
 
-\section{Simple synthetic data setting}
+\section{Synthetic Data}
 
-In a simple synthetic data setting, data is generated from the below SCM.
+We create synthetic SCMs from which we sample our 
 
 \begin{align}
 	x_1 & = u_1 & u_1 \sim N(0,1) \\ \nonumber
