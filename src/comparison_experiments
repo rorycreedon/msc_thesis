@@ -19,7 +19,7 @@ def setup_logging(args) -> None:
 
     # Set up logging
     logging.basicConfig(
-        filename=f"logs/{args.scm}SCM_comparison_results.log",
+        filename=f"logs/{args.scm_name}SCM_comparison_results.log",
         filemode="w",
         format="%(name)s - %(levelname)s - %(message)s",
         level=logging.INFO,
@@ -128,7 +128,8 @@ def learn_beta(
 
     # Convert to torch tensors
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
-    ground_truth_beta = torch.tensor(ground_truth_beta, dtype=torch.float64)
+    if type(ground_truth_beta) == np.ndarray:
+        ground_truth_beta = torch.tensor(ground_truth_beta, dtype=torch.float64)
 
     # GENERATE ALTERNATIVE ACTIONS AND ORDERINGS
     beta_learner = CostLearner(
@@ -197,7 +198,8 @@ def eval_true_cost(
 
     # Convert to torch tensors
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
-    beta_ground_truth = torch.tensor(beta_ground_truth, dtype=torch.float64)
+    if type(beta_ground_truth) == np.ndarray:
+        beta_ground_truth = torch.tensor(beta_ground_truth, dtype=torch.float64)
 
     # Calculate true cost
     true_cost = TrueCost(
@@ -223,6 +225,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_epochs", type=int, default=10_000)
     parser.add_argument("--scm_noise", type=float, default=0)
     parser.add_argument("--eval_noise", type=float, default=0)
+    parser.add_argument("--scm_name", type=str, default="simple")
     args = parser.parse_args()
 
     setup_logging(args)
@@ -230,9 +233,9 @@ if __name__ == "__main__":
     N = args.N
 
     # Generate data from SCM
-    if args.scm == "simple":
+    if args.scm_name == "simple":
         SCM = SimpleSCM(N)
-    elif args.scm == "nonlinear":
+    elif args.scm_name == "nonlinear":
         SCM = NonLinearSCM(N)
     else:
         raise ValueError("SCM name not recognised.")
@@ -250,56 +253,63 @@ if __name__ == "__main__":
     b_classifier = clf.intercept_[0]
 
     # Ground truth beta
-    beta_ground_truth = np.random.uniform(0, 1, size=(X_neg.shape))
-    beta_ground_truth = beta_ground_truth / np.sum(beta_ground_truth, axis=1)[:, None]
+    beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
+        X_neg.shape[0], 1
+    )
+    beta_ground_truth += (
+        torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64) / 5
+    )
+    beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
 
     # Comparison list
     comparison_list = [5, 10, 20, 50]
 
     # Results array
-    results = np.zeros((N_neg, 2))
+    results = np.zeros((N_neg,))
 
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    for scm_name in ["simple", "nonlinear"]:
-        if scm_name == "simple":
-            SCM = SimpleSCM(N)
-        elif scm_name == "nonlinear":
-            SCM = NonLinearSCM(N)
+    # Ground truth cost
+    cost_ground_truth = eval_true_cost(
+        X_neg=X_neg,
+        use_scm=True,
+        beta=beta_ground_truth,
+        W_classifier=W_classifier,
+        b_classifier=b_classifier,
+        beta_ground_truth=beta_ground_truth,
+        learn_ordering=args.learn_ordering,
+        sorter=SoftSort(hard=True, tau=args.tau, device=device),
+        lr=args.lr,
+        max_epochs=20_000,
+        verbose=False,
+        scm=SCM.scm,
+    )
 
-        logging.info(f"SCM - {scm_name}")
-        logging.info("====================================")
+    logging.info(f"Ground truth cost: {cost_ground_truth}")
 
-        SCM.simulate_data()
-
-        # Classify data
-        y_pred, X_neg, clf = SCM.classify_data()
-        N_neg = X_neg.shape[0]
-
-        logging.info(f"{N} individuals")
-        logging.info(f"{N_neg} negatively classified individuals")
-
-        # Classification weights
-        W_classifier = np.squeeze(clf.coef_)
-        b_classifier = clf.intercept_[0]
-
-        # Ground truth beta
-        beta_ground_truth = torch.rand(X_neg.shape[1], dtype=torch.float64).repeat(
-            X_neg.shape[0], 1
+    # Loop through list of comparisons
+    for n_comparisons in comparison_list:
+        # Learn beta
+        learned_beta, learned_W, loss_list = learn_beta(
+            X_neg=X_neg,
+            ground_truth_beta=beta_ground_truth,
+            scm=SCM.scm,
+            eval_noise=args.eval_noise,
+            scm_noise=args.scm_noise,
+            n_comparisons=n_comparisons,
+            max_epochs=args.max_epochs,
+            lr=args.lr,
+            l2_reg=0.1,
+            tanh_param=20,
+            verbose=False,
         )
-        beta_ground_truth += (
-            torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64) / 5
-        )
-        beta_ground_truth = (
-            beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
-        )
 
-        # Ground truth cost
-        cost_ground_truth = eval_true_cost(
+        # Calculate cost
+        cost = eval_true_cost(
             X_neg=X_neg,
             use_scm=True,
-            beta=beta_ground_truth,
+            beta=learned_beta,
             W_classifier=W_classifier,
             b_classifier=b_classifier,
             beta_ground_truth=beta_ground_truth,
@@ -311,4 +321,10 @@ if __name__ == "__main__":
             scm=SCM.scm,
         )
 
-        logging.info(f"Ground truth cost: {cost_ground_truth}")
+        logging.info(
+            f"Cost increase with {n_comparisons} comparisons: {100*((cost/cost_ground_truth) -1)}%"
+        )
+        results[n_comparisons] = (cost / cost_ground_truth) - 1
+
+    # Save results
+    np.save(f"results/{args.scm_name}SCM_comparison_results.npy", results)
