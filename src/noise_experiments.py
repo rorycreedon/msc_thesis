@@ -82,13 +82,18 @@ def gen_recourse(
     )
     recourse_gen.set_sorter(sorter=sorter)
 
-    X_prime = recourse_gen.gen_recourse(
+    X_prime, order, actions, cost, pred = recourse_gen.gen_recourse(
         classifier_margin=0.02,
         max_epochs=max_epochs,
         verbose=False,
         lr=lr,
         format_as_df=False,
-    )[0]
+    )
+
+    # Check to see that constraint is satistfied
+    logging.info(
+        f"negative classifications after recourse - {torch.sum((X_prime @ W_classifier + b_classifier) < 0)}"
+    )
 
     return X_prime
 
@@ -182,9 +187,9 @@ def eval_true_cost(
         X_neg=X_neg,
         W_classifier=W_classifier,
         b_classifier=b_classifier,
-        lr=args.lr,
+        lr=args.lr * 2,
         sorter=sorter,
-        max_epochs=args.max_epochs * 2,
+        max_epochs=args.max_epochs,
         use_scm=use_scm,
         W_adjacency=W_adjacency,
         scm=scm,
@@ -257,12 +262,12 @@ if __name__ == "__main__":
     parser.add_argument("--N", type=int, default=2_000)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--learn_ordering", type=bool, default=False)
-    parser.add_argument("--tau", type=float, default=0.1)
-    parser.add_argument("--max_epochs", type=int, default=2_500)
-    parser.add_argument("--num_trials", type=int, default=2)
-    parser.add_argument("--num_levels", type=int, default=2)
-    parser.add_argument("--max_noise", type=float, default=2)
-    parser.add_argument("--scm", type=str, default="nonlinear")
+    parser.add_argument("--tau", type=float, default=0.5)
+    parser.add_argument("--max_epochs", type=int, default=10_000)
+    parser.add_argument("--num_trials", type=int, default=5)
+    parser.add_argument("--num_levels", type=int, default=10)
+    parser.add_argument("--max_noise", type=float, default=1)
+    parser.add_argument("--scm", type=str, default="simple")
     args = parser.parse_args()
 
     setup_logging(args)
@@ -282,13 +287,16 @@ if __name__ == "__main__":
     y_pred, X_neg, clf = SCM.classify_data()
     N_neg = X_neg.shape[0]
 
+    logging.info(f"{N} individuals")
+    logging.info(f"{N_neg} negatively classified individuals")
+
     # Classification weights
     W_classifier = np.squeeze(clf.coef_)
     b_classifier = clf.intercept_[0]
 
     # Ground truth beta
-    beta_ground_truth = np.array([3, 2, 1, 4, 5])
-    beta_ground_truth = beta_ground_truth / np.sum(beta_ground_truth)
+    beta_ground_truth = np.random.uniform(0, 1, size=(X_neg.shape))
+    beta_ground_truth = beta_ground_truth / np.sum(beta_ground_truth, axis=1)[:, None]
 
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -320,6 +328,10 @@ if __name__ == "__main__":
     for n in range(args.num_trials):
         for i, scm_noise in enumerate(scm_noise_levels):
             for j, e_noise in enumerate(eval_noise_levels):
+                logging.info(
+                    f"scm_noise : {scm_noise} | Eval noise: {e_noise} | Trial: {n}"
+                )
+
                 # Learn beta
                 learned_beta, learned_W, loss_list = learn_beta(
                     X_neg=X_neg,
@@ -334,6 +346,10 @@ if __name__ == "__main__":
                     tanh_param=20,
                     verbose=False,
                 )
+
+                if args.scm == "simple":
+                    logging.info(f"Learned W: {learned_W}")
+
                 # Generate recourse
                 cost = eval_true_cost(
                     X_neg=X_neg,
@@ -350,14 +366,11 @@ if __name__ == "__main__":
                     verbose=False,
                     scm=SCM.scm,
                 )
-
-                logging.info(
-                    f"scm_noise : {scm_noise} | Eval noise: {e_noise} | Trial: {n}"
-                )
                 logging.info(
                     f"{round(100 * ((cost / cost_ground_truth) - 1), 2)}% increase in cost"
                 )
 
+                print(f"cost - {cost}")
                 results[n, i, j] = (cost / cost_ground_truth) - 1
 
     # Save file

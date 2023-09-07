@@ -66,7 +66,7 @@ class SimpleSCM:
         Train a classifier on the data.
         :return: LogisticRegression object
         """
-        clf = LogisticRegression(random_state=0).fit(self.X.numpy(), self.y.numpy())
+        clf = LogisticRegression().fit(self.X.numpy(), self.y.numpy())
         y_pred = clf.predict(self.X.numpy())
         X_neg = self.X.numpy()[y_pred == 0]
         return y_pred, X_neg, clf
@@ -143,7 +143,7 @@ class NonLinearSCM:
         Train a classifier on the data.
         :return: LogisticRegression object
         """
-        clf = LogisticRegression(random_state=0).fit(self.X.numpy(), self.y.numpy())
+        clf = LogisticRegression().fit(self.X.numpy(), self.y.numpy())
         y_pred = clf.predict(self.X.numpy())
         X_neg = self.X.numpy()[y_pred == 0]
         return y_pred, X_neg, clf

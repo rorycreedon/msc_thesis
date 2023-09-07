@@ -23,7 +23,7 @@ class TrueCost:
         self.X = X.to(self.device)
         self.X_final = X_final.to(self.device)
         self.scm = scm
-        self.beta = (beta / torch.sum(beta)).to(self.device)
+        self.beta = (beta / torch.sum(beta, dim=1).unsqueeze(-1)).to(self.device)
         self.learn_ordering = learn_ordering
         self.sorter = sorter
         self.sorter.device = self.device
@@ -126,7 +126,7 @@ class TrueCost:
             ):
                 break
 
-            if verbose and epoch % 100 == 0:
+            if verbose and epoch % 500 == 0:
                 print(
                     f"Epoch: {epoch} | Objective: {objective_list[-1].mean()} | Constraint: {constraint_list[-1].mean()}"
                 )

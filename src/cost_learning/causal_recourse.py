@@ -4,9 +4,11 @@ import numpy as np
 import pandas as pd
 import time
 from typing import Union
+import matplotlib.pyplot as plt
 
 from src.cost_learning.softsort import SoftSort
 from src.structural_models.structural_causal_model import StructuralCausalModel
+from src.structural_models.synthetic_data import SimpleSCM, NonLinearSCM
 from src.utils import gen_toy_data
 
 
@@ -65,9 +67,9 @@ class CausalRecourse:
             self.beta = torch.ones(self.X.shape[1]).to(self.device)
         else:
             self.beta = beta.to(self.device)
-        assert torch.min(self.beta) > 0, "Beta must be greater than 0"
+        assert torch.min(self.beta) >= 0, "Beta must be greater than 0"
         # normalise beta
-        self.beta = self.beta / self.beta.sum()
+        self.beta = self.beta / torch.sum(self.beta, dim=1).unsqueeze(-1)
 
         # Ordering
         if self.learn_ordering is False:
@@ -262,15 +264,21 @@ class CausalRecourse:
             # Convergence criteria
             if (
                 epoch > 100
-                and np.std(objective_list[-10:]) < 1e-5
-                and np.std(constraint_list[-10:]) < 1e-5
+                and np.std(objective_list[-20:]) < 1e-7
+                and np.std(constraint_list[-20:]) < 1e-7
             ):
                 break
 
-            if epoch % 100 == 0 and verbose:
+            if epoch % 500 == 0 and verbose:
                 vprint(
                     f"Epoch {epoch} | Objective: {objective_list[-1]} | Constraint: {constraint_list[-1]}"
                 )
+
+        # plt.plot(objective_list, label="Objective")
+        # # second y axis
+        # ax2 = plt.twinx()
+        # ax2.plot(constraint_list, label="Constraint", color="orange")
+        # plt.show()
 
         if format_as_df:
             # Clean for dataframe
@@ -312,14 +320,49 @@ class CausalRecourse:
 
 
 if __name__ == "__main__":
-    X, scm = gen_toy_data(1000)
+    # X, scm = gen_toy_data(1000)
 
-    # Classifier
-    W_classifier = torch.tensor([-2, -3, -4], dtype=torch.float64)
-    b_classifier = 0.0
+    # # Classifier
+    # W_classifier = torch.tensor([-2, -3, -4], dtype=torch.float64)
+    # b_classifier = 0.0
 
-    # Beta
-    beta = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float64)
+    # # Beta
+    # beta = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float64)
+
+    # W_adjacency = torch.tensor(
+    #     [
+    #         [0, 0.5, 0.35],
+    #         [0, 0, 0.2],
+    #         [0, 0, 0],
+    #     ],
+    #     dtype=torch.float64,
+    # )
+
+    N = 1000
+
+    # Generate data from SCM
+    SCM = SimpleSCM(N)
+    SCM.simulate_data()
+
+    # Classify data
+    y_pred, X_neg, clf = SCM.classify_data()
+    N_neg = X_neg.shape[0]
+    X_neg = torch.tensor(X_neg, dtype=torch.float64)
+
+    print(f"{N_neg} negatively classified individuals")
+
+    # Classification weights
+    W_classifier = np.squeeze(clf.coef_)
+    b_classifier = clf.intercept_[0]
+
+    W_classifier = torch.tensor(W_classifier, dtype=torch.float64)
+    print(W_classifier)
+    print(b_classifier)
+
+    # Ground truth beta
+    beta = np.random.uniform(0, 1, size=(X_neg.shape))
+    beta = beta / np.sum(beta, axis=1)[:, None]
+    beta = torch.tensor(beta, dtype=torch.float64)
 
     W_adjacency = torch.tensor(
         [
@@ -332,19 +375,19 @@ if __name__ == "__main__":
 
     # Instantiate CausalRecourse
     cr = CausalRecourse(
-        X=X,
+        X=X_neg,
         W_classifier=W_classifier,
         b_classifier=b_classifier,
         beta=beta,
-        use_scm=False,
-        scm=scm,
-        W_adjacency=W_adjacency,
+        use_scm=True,
+        scm=SCM.scm,
         learn_ordering=True,
+        W_adjacency=W_adjacency,
     )
 
     start = time.time()
     df = cr.gen_recourse(
-        classifier_margin=0.005,
+        classifier_margin=0.02,
         max_epochs=4_000,
         verbose=True,
         lr=1e-2,

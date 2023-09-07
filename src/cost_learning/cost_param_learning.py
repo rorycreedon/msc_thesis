@@ -43,7 +43,7 @@ class CostLearner:
         Generate random actions for the pairwise comparisons
         :return: None
         """
-        self.actions = self.X + torch.rand(
+        self.actions = torch.rand(
             2, self.n_comparisons, self.X.shape[0], self.X.shape[1], dtype=torch.float64
         )
         N, D = self.X.shape
