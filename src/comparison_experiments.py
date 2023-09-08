@@ -255,7 +255,7 @@ if __name__ == "__main__":
     b_classifier = clf.intercept_[0]
 
     # Ground truth beta
-    beta_ground_truth = torch.tensor([0.1, 0.2, 0.7], dtype=torch.float64).repeat(
+    beta_ground_truth = torch.tensor([0.1, 0.2, 0.7, 0.4, 0.6], dtype=torch.float64).repeat(
         X_neg.shape[0], 1
     )
     beta_ground_truth += torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64)
