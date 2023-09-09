@@ -255,15 +255,18 @@ if __name__ == "__main__":
     b_classifier = clf.intercept_[0]
 
     # Ground truth beta
-    beta_ground_truth = torch.tensor([0.1, 0.2, 0.7, 0.4, 0.6], dtype=torch.float64).repeat(
-        X_neg.shape[0], 1
-    )
+    if args.scm_name == "simple":
+        beta_ground_truth = torch.tensor([0.1, 0.2, 0.7], dtype=torch.float64).repeat(X_neg.shape[0], 1)
+    elif args.scm_name == "nonlinear":
+        beta_ground_truth = torch.tensor([0.1, 0.2, 0.7, 0.4, 0.6], dtype=torch.float64).repeat(
+            X_neg.shape[0], 1
+        )
     beta_ground_truth += torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64)
     # beta_ground_truth = torch.rand(X_neg.shape, dtype=torch.float64)
     beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
 
     # Comparison list
-    comparison_list = [5, 10, 20, 50, 100]
+    comparison_list = [5, 10, 20, 50]
 
     # Results array
     results = np.zeros((len(comparison_list),))
@@ -289,8 +292,8 @@ if __name__ == "__main__":
 
     logging.info(f"Ground truth cost: {cost_ground_truth}")
 
-    # IDENTITY W and RANDOM BETA
-    beta_random = torch.rand(X_neg.shape, dtype=torch.float64)
+    # IDENTITY W and uniform beta
+    beta_random = torch.ones(X_neg.shape, dtype=torch.float64)
     beta_random = beta_random / torch.sum(beta_random, dim=1)[:, None]
 
     W_identity = torch.eye(X_neg.shape[1], dtype=torch.float64)
@@ -342,8 +345,8 @@ if __name__ == "__main__":
         f"Cost increase with random beta and random W: {100*((cost_random/cost_ground_truth) -1)}%"
     )
 
-    scm_noise_list = [0, 0.1, 0.5, 1]
-    eval_noise_list = [0, 0.1, 0.5, 1]
+    scm_noise_list = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5]
+    eval_noise_list = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5]
 
     results_array = np.empty(
         (len(scm_noise_list), len(eval_noise_list), len(comparison_list))
@@ -390,4 +393,4 @@ if __name__ == "__main__":
                 results_array[i, j, k] = (cost / cost_ground_truth) - 1
 
     # Save results
-    np.save(f"results/{args.scm_name}SCM_comparison_results.npy", results)
+    np.save(f"results/{args.scm_name}SCM_comparison_results.npy", results_array)
