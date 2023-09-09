@@ -83,7 +83,7 @@ def gen_recourse(
     X_prime, order, actions, cost, pred = recourse_gen.gen_recourse(
         classifier_margin=0.02,
         max_epochs=max_epochs,
-        verbose=True,
+        verbose=False,
         lr=lr,
         format_as_df=False,
     )
@@ -299,7 +299,7 @@ if __name__ == "__main__":
         sorter=SoftSort(hard=True, tau=args.tau, device=device),
         lr=args.lr,
         max_epochs=20_000,
-        verbose=True,
+        verbose=False,
         scm=SCM.scm,
     )
 
@@ -322,7 +322,7 @@ if __name__ == "__main__":
         sorter=SoftSort(hard=True, tau=args.tau, device=device),
         lr=args.lr,
         max_epochs=20_000,
-        verbose=True,
+        verbose=False,
         scm=SCM.scm,
         W_adjacency=W_identity,
     )
@@ -380,7 +380,7 @@ if __name__ == "__main__":
                     lr=args.lr,
                     l2_reg=0.1,
                     tanh_param=20,
-                    verbose=True,
+                    verbose=False,
                 )
 
                 # Calculate cost
@@ -395,7 +395,7 @@ if __name__ == "__main__":
                     sorter=SoftSort(hard=True, tau=args.tau, device=device),
                     lr=args.lr,
                     max_epochs=20_000,
-                    verbose=True,
+                    verbose=False,
                     scm=SCM.scm,
                     W_adjacency=learned_W,
                 )
