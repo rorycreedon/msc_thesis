@@ -13,6 +13,7 @@ class CostLearner:
         ground_truth_beta: torch.Tensor,
         scm: StructuralCausalModel,
         scm_known: bool = False,
+        use_kernel_ridge: bool = False,
     ) -> None:
         """
         Initialise the class
@@ -31,6 +32,7 @@ class CostLearner:
         )
         self.scm = scm
         self.scm_known = scm_known
+        self.use_kernel_ridge = use_kernel_ridge
 
         # Outcomes, ordering and actions
         self.true_outcomes = None
@@ -112,6 +114,32 @@ class CostLearner:
 
         return cost
 
+    def eval_actions_kernel_ridge(self, X, actions, ordering, kernel_func, beta, alpha):
+        """
+        Evaluate the actions using the Kernel Ridge model.
+        :param X: original features
+        :param actions: actions to get to each value
+        :param ordering: ordering or fixed ordering
+        :param kernel_func: Kernel function to use
+        :param beta: beta to calculate loss for
+        :return: costs
+        """
+        X_bar = X.clone()
+        S = ordering.to(int)
+        costs = torch.zeros(X.shape[0])
+
+        for i in range(
+            X.shape[1]
+        ):  # Assuming this is the equivalent of W_adjacency.shape[0]
+            costs += torch.sum(((actions - X_bar) ** 2) * (S == i) * beta, dim=1)
+
+            # Update X_bar using the kernel model
+            kernel_values = kernel_func(actions, X_bar).squeeze(0)
+            X_bar_pred = kernel_values @ alpha
+            X_bar = X_bar + X_bar_pred * (S == i).to(torch.float64)
+
+        return costs
+
     @staticmethod
     def eval_actions_linear(
         X: torch.Tensor,
@@ -141,6 +169,11 @@ class CostLearner:
         return costs
 
     @staticmethod
+    def rbf_kernel(x1, x2, gamma=1.0):
+        dist = torch.cdist(x1.unsqueeze(0), x2.unsqueeze(0)) ** 2
+        return torch.exp(-gamma * dist)
+
+    @staticmethod
     def hinge_loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         """
         Hinge loss
@@ -154,6 +187,7 @@ class CostLearner:
         self,
         beta: torch.Tensor,
         W_adjacency: torch.Tensor = None,
+        alpha: torch.Tensor = None,
         tanh_param: float = 50,
         return_outcomes=False,
     ) -> torch.Tensor:
@@ -193,7 +227,7 @@ class CostLearner:
                 ]
             )
 
-        else:
+        elif self.use_kernel_ridge is False:
             costs_0 = torch.stack(
                 [
                     self.eval_actions_linear(
@@ -215,6 +249,35 @@ class CostLearner:
                         ordering=self.ordering[1][i],
                         W_adjacency=W_adjacency,
                         beta=beta,
+                    )
+                    for i in range(self.n_comparisons)
+                ]
+            )
+
+        else:
+            costs_0 = torch.stack(
+                [
+                    self.eval_actions_kernel_ridge(
+                        X=self.X.to("cpu"),
+                        actions=self.actions[0][i],
+                        ordering=self.ordering[0][i],
+                        kernel_func=self.rbf_kernel,
+                        beta=beta,
+                        alpha=alpha,
+                    )
+                    for i in range(self.n_comparisons)
+                ]
+            )
+
+            costs_1 = torch.stack(
+                [
+                    self.eval_actions_kernel_ridge(
+                        X=self.X.to("cpu"),
+                        actions=self.actions[1][i],
+                        ordering=self.ordering[1][i],
+                        kernel_func=self.rbf_kernel,
+                        beta=beta,
+                        alpha=alpha,
                     )
                     for i in range(self.n_comparisons)
                 ]
@@ -263,6 +326,12 @@ class CostLearner:
         else:
             learned_W = None
 
+        if self.use_kernel_ridge:
+            learned_W is None
+            learned_alpha = torch.randn(
+                self.X.shape, dtype=torch.float64, requires_grad=True
+            )
+
         # Optimiser
         if self.scm_known:
             optimizer = torch.optim.AdamW([learned_beta], lr=lr, weight_decay=l2_reg)
@@ -270,6 +339,13 @@ class CostLearner:
             optimizer = torch.optim.AdamW(
                 [learned_W, learned_beta], lr=lr, weight_decay=l2_reg
             )
+
+        if self.use_kernel_ridge:
+            optimizer = torch.optim.AdamW(
+                [learned_alpha, learned_beta], lr=lr, weight_decay=l2_reg
+            )
+        else:
+            learned_alpha = None
 
         loss_list = []
 
@@ -288,10 +364,15 @@ class CostLearner:
         # Training loop
         for epoch in range(max_epochs):
             optimizer.zero_grad()
-            loss = self.loss(learned_beta, tanh_param=tanh_param, W_adjacency=learned_W)
+            loss = self.loss(
+                learned_beta,
+                tanh_param=tanh_param,
+                W_adjacency=learned_W,
+                alpha=learned_alpha,
+            )
             loss.backward()
 
-            if self.scm_known is False:
+            if self.scm_known is False and self.use_kernel_ridge is False:
                 # add a mask to gre gradients so gradients are fixed at 0 for diagonal elements
                 mask = 1 - torch.eye(learned_W.shape[0])
                 learned_W.grad *= mask
@@ -299,19 +380,22 @@ class CostLearner:
             optimizer.step()
 
             # Ensure beta is positive and normalise so it sums to 1
-            learned_beta.data = torch.clamp(learned_beta.data, min=0)
+            learned_beta.data = torch.clamp(
+                learned_beta.data, min=0.05
+            )  # setting min at 0.01, don't want any beta=0 because it would make it free to change one feature
             learned_beta.data = learned_beta.data / torch.sum(
                 learned_beta.data, axis=1, keepdims=True
             )
 
             # Track losses
             loss_list.append(loss.item())
-            if verbose and epoch % 100 == 0:
+            if verbose and epoch % 10 == 0:
                 pred_outcomes = self.loss(
                     learned_beta,
                     tanh_param=tanh_param,
                     W_adjacency=learned_W,
                     return_outcomes=True,
+                    alpha=learned_alpha,
                 )
                 vprint(
                     f"Epoch {epoch} | Loss {loss.item()} | Accuracy {torch.sum(pred_outcomes == self.outcomes) / (self.outcomes.shape[0] * self.outcomes.shape[1])}"
@@ -328,6 +412,7 @@ class CostLearner:
             tanh_param=tanh_param,
             W_adjacency=learned_W,
             return_outcomes=True,
+            alpha=learned_alpha,
         )
         vprint(
             f"Learned Accuracy: {torch.sum(pred_outcomes == self.outcomes) / (self.outcomes.shape[0] * self.outcomes.shape[1])}"
@@ -337,15 +422,21 @@ class CostLearner:
         vprint(f"Ground truth beta: {self.ground_truth_beta}\n")
 
         # if self.W_known:
-        vprint(f"Learned W: {learned_W.detach()}")
+        if self.use_kernel_ridge:
+            vprint(f"Learned alpha: {learned_alpha.detach()}")
+        else:
+            vprint(f"Learned W: {learned_W.detach()}")
+
+        # vprint(f"Learned alpha: {learned_alpha.detach()}")
 
         return learned_beta.detach(), learned_W.detach(), loss_list
 
 
 if __name__ == "__main__":
+    torch.autograd.set_detect_anomaly(True)
     # X, scm = gen_toy_data(10_000)
     N = 1_000
-    SCM = SimpleSCM(N)
+    SCM = NonLinearSCM(N)
     SCM.simulate_data()
     y_pred, X_neg, clf = SCM.classify_data()
     X_neg = torch.tensor(X_neg, dtype=torch.float64)
@@ -362,10 +453,11 @@ if __name__ == "__main__":
 
     cost_learner = CostLearner(
         X=X_neg,
-        n_comparisons=50,
+        n_comparisons=5,
         ground_truth_beta=beta_ground_truth,
         scm=SCM.scm,
-        scm_known=True,
+        scm_known=False,
+        use_kernel_ridge=True,
     )
     cost_learner.eval_random_actions(scm_noise=0, eval_noise=0)
     cost_learner.learn(verbose=True, lr=1e-3, l2_reg=0.1, max_epochs=2_000)

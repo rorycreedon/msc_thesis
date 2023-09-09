@@ -63,9 +63,9 @@ Shown below are the structural equations of the non-linear SCM $\mathcal{M}_{\te
 \begin{align}
 	x_1 & = u_1 & u_1 \sim N(0,1) \\ \nonumber
 	x_2 & = u_2 - \frac{2}{1 + x_1^2} & u_2 \sim N(0,1) \\ \nonumber
-	x_3 & = u_3 + 0.2x_1 + 0.01x^2_2 & u_3 \sim N(0,0.5) \\ \nonumber
-	x_4 & = u_4 + 2x_3 + 3x_1x_2 & u_4 \sim N(0,0,5) \\ \nonumber
-	x_5 & = u_5 + 0.4x_1 & u_5 \sim N(0,0.5) \\ \nonumber
+	x_3 & = u_3 + 0.2x_1 + 0.1x_1x_2 & u_3 \sim N(0,0.5) \\ \nonumber
+	x_4 & = u_4 + 0.4x_1 + 0.7x_2x_3 & u_4 \sim N(0,0,5) \\ \nonumber
+	x_5 & = u_5 + 0.8x_1 & u_5 \sim N(0,0.5) \\ \nonumber
 	y   & \sim \text{Bernoulli}(\sigma(0.1x_1 + 0.2x_2 + 0.3x_3 + 0.4x_4 + 0.5x_5))
 \end{align}
 
@@ -77,7 +77,7 @@ Shown below are the structural equations of the non-linear SCM $\mathcal{M}_{\te
 \end{figure}
 
 
-\section{Evaluation Criteria}
+\section{Evaluation Criteria} \comment{can probably ditch this section, consider have basically got rid of it}
 
 To how useful the learned user preferences $\hat{\beta_k}$ and SCM approximation parameters $\hat{W}$ are, we need to be able to evaluate $\cost(\mathbf{x,x}^*)$, where $\mathbf{x}^*$ represents the recourse generated. To do this, we propose simply minimise the squared distance between the recourse $\mathbf{x}^*$ and $\mathbf{x}'$, which represents the parametric counterfactual from ordered actions $A$ under the true SCM. The objective function that is optimised is shown below.
 
@@ -99,6 +99,8 @@ This can be optimised using gradient descent. Once we have obtained ordered acti
 In this section, we present the results of the learned cost function on the two SCMs described in the previous section. In all the experiments conducted in this section, we simulate 2,000 individuals from the SCMs, which are then classified either positively or negatively.
 
 \subsection{Linear SCM}
+
+
 
 \subsection{Non-Linear SCM}
 

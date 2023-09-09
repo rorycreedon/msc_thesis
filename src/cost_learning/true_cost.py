@@ -186,7 +186,7 @@ class TrueCost:
             if epoch % 100 == 0:
                 vprint(f"Epoch: {epoch} | Objective: {objective_list[-1]}")
 
-        # vprint(f"Final actions: {A}")
+        vprint(f"Final actions: {A}")
         # vprint(f"Final ordering: {O}")
 
         # vprint(f"Beginning X: {self.X}")
@@ -202,7 +202,7 @@ class TrueCost:
 
 
 if __name__ == "__main__":
-    N = 10_000
+    N = 2000
     SCM = NonLinearSCM(N)
     SCM.simulate_data()
 
@@ -215,6 +215,19 @@ if __name__ == "__main__":
 
     # ATTEMPT 1
     # cost = true_cost.eval_true_cost_constrained(lr=0.01, max_epochs=1_000, verbose=True)
+    # print(cost)
 
     # ATTEMPT 2
     cost = true_cost.eval_true_cost(lr=0.01, max_epochs=20_000, verbose=True)
+    print(cost)
+    print(cost.mean())
+
+    # ATTEMPT 3
+    # abuuct U for X
+    U_original = SCM.scm.abduction(X)
+    U_new = SCM.scm.abduction(X_final)
+
+    # Calculate the difference
+    cost = (U_new - U_original) ** 2 * beta
+    print(cost)
+    print(cost.mean())

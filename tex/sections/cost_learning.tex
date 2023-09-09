@@ -1,19 +1,19 @@
 \chapter{Cost Learning} \label{chapter:cost_learning}
 
-At the beginning of chapter \ref{chapter:causal_recourse}, we noted that the cost function used in the literature is typically of the form $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x} - \mathbf{x}')^2$. Chapter \ref{chapter:causal_recourse} dealt with one of the limitations of this cost function - that it does not take into account the downstream effects of changing one feature on other features. In this chapter, we deal with another limitation of cost functions of this form - they fail to take into account user preferences over how difficult to manipulate different features are. For example, picture a scenario where an individual is applying for a PhD and is provided with recourse. They are asked to increase their GRE\footnote{The \href{https://www.ets.org/gre.html}{Graduate Record Examination} (GRE) is a standardised test that is an admissions requirement for some Masters and PhD programmes.} quantitative reasoning score and produce more academic work (i.e., published papers). It is likely that increasing your GRE quantitative score is more easily mutable than producing additional published papers, which take considerable time and effort.
+In the introduction, three key issues were highlighted with existing cost function in the algorithmic recourse. The first issue, the use of sequential interventions, were covered in chapter \ref{chapter:causal_recourse}. The second and third issues, taking into account preferences over feature mutability and specification of the underlying SCM, are covered in this chapter. We outline a novel methodology to simultaneously learn user preferences over feature mutability and specification of the SCM from the users' \textit{revealed preferences}. \\
 
-There do exist standard cost functions which take into account user preference, for example a quadratic form cost function $c(\mathbf{x}, \mathbf{x}') = (\mathbf{x-x'})^T\mathbf{M}(\mathbf{x-x'})$ where $\mathbf{M}$ is a fixed, known, positive semi-definite square matrix \citep{bechavodInformationDiscrepancyStrategic2022}.\comment{Explain how $\mathbf{M}$ encodes user preference} However, $\mathbf{M}$ must be selected in advance of generating recourse. In this chapter, we propose a methodology for \textit{learning} user preferences.
 
-\textbf{[TO RE-WRITE THE ABOVE, TAKING INTO ACCOUNT THE INTRODUCTION]}
+User preferences over feature mutability, or how easy it is for individuals to change different features, is important to take into account in our cost function. Without taking into account individual preferences over feature mutability, an individual with very low discretionary spending and highly irreducible costs (e.g., childcare) and limited opportunities for a salary increase may be asked to significantly increase their savings in order to be approved for a loan, instead of providing recourse in more more mutable features, such as improving credit score and number of loans successfully paid back. \\
 
+The SCM used to calculate causal recourse is also an important to take into account. As outlined in section \ref{section:causal_recourse_motivation}, in order to correctly measure the cost of changing features from $\mathbf{x}$ to $\mathbf{x}'$, we need to take into account the causal effects of changing one variable on the others. However, if we misspecify the SCM, then we inaccurately measure the causal of effect of changing one variables on other variables, which will lead to sub-optimal recourse provided to negatively classified individuals.
 
 \section{Learning from Revealed Preferences}
 
-Revealed preference theory \citep{samuelsonNotePureTheory1938, samuelsonConsumptionTheoryTerms1948} is an economic theory that states that if a consumer if offered a bundle of goods $x$ and a bundle of goods $y$ both within a budget set $B$ and the consumer chooses $x$ over $y$, then $x$ is preferred to $y$.\comment{Rewrite this and expand, potentially state was WARP and SARP are.} From the consumer's decision to purchase bundle $x$ over bundle $y$, the consumer \textit{reveals} their (normative) \textit{preferences} over $x$ and $y$.
+Revealed preference theory \citep{samuelsonNotePureTheory1938, samuelsonConsumptionTheoryTerms1948} is an economic theory that states that if a consumer if offered a bundle of goods $x$ and a bundle of goods $y$ both within a budget set $B$ and the consumer chooses $x$ over $y$, then $x$ is preferred to $y$. From the consumer's decision to purchase bundle $x$ over bundle $y$, the consumer \textit{reveals} their (normative) \textit{preferences} over $x$ and $y$.
 
 We can use this idea to learn individuals' revealed preferences over feature mutability. Whilst humans are not able to describe their own preferences mathematically, they are able to express their preferences when given limited options to choose from. We propose to ask negatively classified individual a series of questions. In each question, individuals are asked to compare two sets of ordered actions $A^1$ and $A^2$ and responds with whichever one is least costly. If $A^1$ is preferred to $A^2$. We can use this information to parameterise a cost function which takes into account user preference.
 
-Whilst when recourse is finally provided after costs have been learned, it is provided in the form of an alternative vector of features $\mathbf{x}^*$, note that we propose to ask the individuals to compare two sets of ordered actions. This is because are many combinations of different actions and orderings that would result in the same alternative vector of features $\mathbf{x}^'$. The deployer of the model (i.e., the digital bank in the credit scoring setting) does not observe the which actions the individuals would take in order to change their feature values from $\mathbf{x}$ to $\mathbf{x}^'$. As the deployer of the model does not observe how much each feature would have been intervened upon, it becomes very difficult to learn how relatively mutable each feature is. \\
+Whilst when recourse is finally provided after costs have been learned, it is provided in the form of an alternative vector of features $\mathbf{x}^*$, note that we propose to ask the individuals to compare two sets of ordered actions. This is because are many combinations of different actions and orderings that would result in the same alternative vector of features $\mathbf{x}^'$. The deployer of the model (i.e., the digital bank in the credit scoring setting) does not observe the which actions the individuals would take in order to change their feature values from $\mathbf{x}$ to $\mathbf{x}^'$. As the deployer of the model does not observe how much each feature would have been intervened upon, it becomes very difficult to learn how relatively mutable each feature is. \comment{this paragraph needs work}\\
 
 A demonstration of one of the pairwise comparisons that users are asked to evaluate are shown in Figure \ref{fig:comparison_ui}. We envision that users are asked to evaluate these comparisons in an online system, where they must answer the pairwise comparisons in order for recourse to be generated and presented to the users.
 
@@ -21,7 +21,7 @@ A demonstration of one of the pairwise comparisons that users are asked to evalu
 	\centering
 	\begin{tabular}{l|l}
 		\hline
-		\textbf{Action Set 1} & \textbf{Action Set 2} \\
+		\textbf{Action Sequence 1} & \textbf{Action Sequence 2} \\
 		\hline
 		\textsc{1. Salary} $\to$ £70,000 & \textsc{1. Savings} $\to$ £45,000 \\
 		\multicolumn{1}{c|}{\textit{then}} & \multicolumn{1}{c}{\textit{then}}\\
@@ -35,16 +35,16 @@ A demonstration of one of the pairwise comparisons that users are asked to evalu
 	\parbox{\linewidth}{
 		\centering
 		\textit{Question for user:}\\
-		Which of the above sets of actions are easier to complete? \\
-		$\Box$ Action Set 1 \\
-		$\Box$ Action Set 2
+		Which of the above sequences of actions are easier to complete? \\
+		$\Box$ Action Sequence 1 \\
+		$\Box$ Action Sequence 2
 	}
 	
 	\caption{Hypothetical pairwise comparison a user is asked to respond to.}
 	\label{fig:comparison_ui}
 \end{figure}
 
-We assume that, \textit{on average}, users have perfect knowledge of the SCM\comment{justify this - feels a bit like an extension of rational choice theory except that it relates to the real world as opposed to their own preferences} when evaluating which of the sets of actions they find least costly. Knowledge of the underlying structural causal model is crucial when evaluating actions, as actions may have causal effects of other variables and will affect the cost of other actions. For the same user preferences, the cost of the same actions could have different costs if there is a different underlying structural causal model. Consider a two variable SCM with income causing savings. In the first case, income has a very large positive effect on savings, and the in second case, income has a small positive effect on savings. In both cases the actions are to first increase income by £10,000 and then increase savings by £10,000. The cost of increasing income is the same in both cases, but the cost of increase savings is lower in the first case, as there is a large downstream effect of the increase in income on savings, meaning the additional amount to save is lower, and therefore, less costly in the first case.
+In order to effectively learn from the responses of the negatively classified individuals, we make an assumption - that individuals can evaluate their actions using the true SCM. Whilst on the surface, this may appear to be a very strong assumption, it is not unreasonable to think that, in certain settings such as credit scoring, an individual could evaluate the effect of a change in one variable, for example income from £50,000 to £70,000 on other variables such as savings and debt. This is because an individual would be able to estimate how much of the additional income they would be able to save, how much they could use to pay down any existing debt, and how much would likely be allocated to discretionary spending. We do not assume complete knowledge of the SCM - we do not assume that individuals are able to evaluate causal effects for any individual other than themselves. We assume that individuals have 'local' knowledge of the SCM. Later in this chapter, we relax this assumption slightly to assume that individuals have noisy, local knowledge of the SCM.
 
 \section{Cost Learning Formulation} \label{section:cost_learning_formulation}
 
@@ -53,10 +53,6 @@ We now formulate the cost learning problem, where there are $N$ individuals who 
 
 
 \begin{equation} \label{eq:paired_response}
-%	y_{kn} = \begin{cases}
-%		-1 & \text{if } c(\mathbf{x}_n, \mathbf{x}^1_{kn}) \leq c(\mathbf{x}_n \mathbf{x}^2_{kn}) \\
-%		+1 & \text{if }  c(\mathbf{x}_n, \mathbf{x}^1_{kn}) > c(\mathbf{x}_n, \mathbf{x}^2_{kn}) \\
-%	\end{cases}
 	y_{kn} = \begin{cases}
 		-1 & \text{if } A^1_{kn} \text{ preferred to } A^2_{kn} \\
 		+1 & \text{if } A^2_{kn} \text{ preferred to } A^1_{kn}

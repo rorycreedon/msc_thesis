@@ -27,6 +27,8 @@ class CausalRecourse:
         scm: StructuralCausalModel = None,
         W_adjacency: torch.Tensor = None,
         learn_ordering: bool = False,
+        use_kernel: bool = False,
+        alpha: torch.Tensor = None,
     ) -> None:
         """
         Initialize the class.
@@ -45,6 +47,9 @@ class CausalRecourse:
         self.learn_ordering = learn_ordering
         if self.learn_ordering is True:
             self.sorter = SoftSort(tau=0.1, hard=True, power=1.0).to(self.device)
+
+        self.use_kernel = use_kernel
+        self.alpha = alpha
 
         # Data
         self.X = X.to(self.device)
@@ -103,6 +108,11 @@ class CausalRecourse:
         self.sorter = sorter
         self.sorter.device = self.device
 
+    @staticmethod
+    def rbf_kernel(x1, x2, gamma=1.0):
+        dist = torch.cdist(x1.unsqueeze(0), x2.unsqueeze(0)) ** 2
+        return torch.exp(-gamma * dist)
+
     def loss(
         self, A: torch.Tensor, O: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -130,7 +140,7 @@ class CausalRecourse:
                 U += A * S[:, i]
                 X_prime = self.scm.prediction(U)
 
-        else:
+        elif self.use_kernel is False:
             W_temp = self.W_adjacency + torch.eye(
                 self.W_adjacency.shape[0], dtype=torch.float64
             ).to(self.device)
@@ -141,6 +151,19 @@ class CausalRecourse:
                 # X_prime += ((W_temp * S[:, i].unsqueeze(-1)) @ A.unsqueeze(-1)).squeeze(
                 #     -1
                 # )
+                X_prime += (A * S[:, i]) @ W_temp
+
+        else:
+            for i in range(self.X.shape[1]):
+                cost += torch.sum(A**2 * S[:, i] * self.beta, dim=1)
+                assert (cost >= 0).all(), "Cost should be positive"
+
+                # Update using Kernel Ridge Regression
+                kernel_values = self.rbf_kernel(X_prime, self.X).squeeze(0)
+                X_prime_pred = kernel_values @ self.alpha
+                X_prime = X_prime + (A) * S[:, i].to(
+                    torch.float64
+                )  # Assuming this analogously captures the update
                 X_prime += (A * S[:, i]) @ W_temp
 
         return X_prime, cost
@@ -170,10 +193,28 @@ class CausalRecourse:
                     X_prime, 1, S
                 )[:, i].to(torch.float64)
 
-        else:
+        elif self.use_kernel is False:
             A_ordered = torch.gather(A, 1, S)
             for i in range(self.W_adjacency.shape[0]):
                 X_prime += self.W_adjacency[S[:, i]] * A_ordered[:, i].unsqueeze(-1)
+                # set actions as what they need to get to
+                actions[torch.arange(self.X.shape[0]), S[:, i]] = torch.gather(
+                    X_prime, 1, S
+                )[:, i]
+
+        else:
+            A_ordered = torch.gather(A, 1, S)
+
+            for i in range(
+                X_prime.shape[1]
+            ):  # Assuming this is the equivalent of W_adjacency.shape[0]
+                # Update using Kernel Ridge Regression
+                kernel_values = self.rbf_kernel(X_prime, self.X).squeeze(0)
+                X_prime_pred = kernel_values @ self.alpha
+                X_prime += (
+                    A_ordered[:, i] - X_prime_pred
+                )  # Assuming this analogously captures the update
+
                 # set actions as what they need to get to
                 actions[torch.arange(self.X.shape[0]), S[:, i]] = torch.gather(
                     X_prime, 1, S
@@ -376,16 +417,20 @@ if __name__ == "__main__":
         dtype=torch.float64,
     )
 
+    alpha = torch.rand(X_neg.shape, dtype=torch.float64)
+
     # Instantiate CausalRecourse
     cr = CausalRecourse(
         X=X_neg,
         W_classifier=W_classifier,
         b_classifier=b_classifier,
         beta=beta,
-        use_scm=True,
+        use_scm=False,
         scm=SCM.scm,
         learn_ordering=True,
         W_adjacency=W_adjacency,
+        use_kernel=True,
+        alpha=alpha,
     )
 
     start = time.time()

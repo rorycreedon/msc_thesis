@@ -83,7 +83,7 @@ def gen_recourse(
     X_prime, order, actions, cost, pred = recourse_gen.gen_recourse(
         classifier_margin=0.02,
         max_epochs=max_epochs,
-        verbose=False,
+        verbose=True,
         lr=lr,
         format_as_df=False,
     )
@@ -200,15 +200,19 @@ def eval_true_cost(
         beta_ground_truth = torch.tensor(beta_ground_truth, dtype=torch.float64)
 
     # Calculate true cost
-    true_cost = TrueCost(
-        X=X_neg,
-        X_final=X_prime,
-        scm=scm,
-        beta=beta_ground_truth,
-        learn_ordering=learn_ordering,
-        sorter=sorter,
-    )
-    cost = true_cost.eval_true_cost(lr=lr, max_epochs=max_epochs, verbose=verbose)
+    # true_cost = TrueCost(
+    #     X=X_neg,
+    #     X_final=X_prime,
+    #     scm=scm,
+    #     beta=beta_ground_truth,
+    #     learn_ordering=learn_ordering,
+    #     sorter=sorter,
+    # )
+    # cost = true_cost.eval_true_cost(lr=lr, max_epochs=max_epochs, verbose=verbose)
+
+    U = scm.abduction(X_neg)
+    U_prime = scm.abduction(X_prime)
+    cost = torch.sum((U - U_prime) ** 2 * beta_ground_truth, dim=1)
 
     return torch.mean(cost).detach().item()
 
@@ -216,14 +220,14 @@ def eval_true_cost(
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--N", type=int, default=5_000)
+    parser.add_argument("--N", type=int, default=2000)
     parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--learn_ordering", type=bool, default=True)
     parser.add_argument("--tau", type=float, default=1)
     parser.add_argument("--max_epochs", type=int, default=10_000)
     parser.add_argument("--scm_noise", type=float, default=0)
     parser.add_argument("--eval_noise", type=float, default=0)
-    parser.add_argument("--scm_name", type=str, default="simple")
+    parser.add_argument("--scm_name", type=str, default="nonlinear")
     args = parser.parse_args()
 
     setup_logging(args)
@@ -256,13 +260,20 @@ if __name__ == "__main__":
 
     # Ground truth beta
     if args.scm_name == "simple":
-        beta_ground_truth = torch.tensor([0.1, 0.2, 0.7], dtype=torch.float64).repeat(X_neg.shape[0], 1)
-    elif args.scm_name == "nonlinear":
-        beta_ground_truth = torch.tensor([0.1, 0.2, 0.7, 0.4, 0.6], dtype=torch.float64).repeat(
+        beta_ground_truth = torch.tensor([0.1, 0.2, 0.7], dtype=torch.float64).repeat(
             X_neg.shape[0], 1
         )
-    beta_ground_truth += torch.rand(X_neg.shape[0], X_neg.shape[1], dtype=torch.float64)
-    # beta_ground_truth = torch.rand(X_neg.shape, dtype=torch.float64)
+        beta_ground_truth += torch.rand(
+            X_neg.shape[0], X_neg.shape[1], dtype=torch.float64
+        )
+
+    elif args.scm_name == "nonlinear":
+        beta_ground_truth = torch.tensor(
+            [0.05, 0.4, 0.1, 0.3, 0.15], dtype=torch.float64
+        ).repeat(X_neg.shape[0], 1)
+        m = torch.distributions.Gamma(torch.tensor([0.05]), torch.tensor([1]))
+        beta_ground_truth += m.sample(sample_shape=X_neg.shape).squeeze(-1)
+
     beta_ground_truth = beta_ground_truth / torch.sum(beta_ground_truth, dim=1)[:, None]
 
     # Comparison list
@@ -286,7 +297,7 @@ if __name__ == "__main__":
         sorter=SoftSort(hard=True, tau=args.tau, device=device),
         lr=args.lr,
         max_epochs=20_000,
-        verbose=False,
+        verbose=True,
         scm=SCM.scm,
     )
 
@@ -309,7 +320,7 @@ if __name__ == "__main__":
         sorter=SoftSort(hard=True, tau=args.tau, device=device),
         lr=args.lr,
         max_epochs=20_000,
-        verbose=False,
+        verbose=True,
         scm=SCM.scm,
         W_adjacency=W_identity,
     )
@@ -318,32 +329,32 @@ if __name__ == "__main__":
         f"Cost increase with random beta and identity W: {100*((cost_identity/cost_ground_truth) -1)}%"
     )
 
-    # Random W and random beta
-    W_random = torch.normal(
-        0, 1, size=(X_neg.shape[1], X_neg.shape[1]), dtype=torch.float64
-    )
-    # Set diagonal to 0
-    W_random = W_random - torch.diag(torch.diag(W_random))
+    # # Random W and random beta
+    # W_random = torch.normal(
+    #     0, 1, size=(X_neg.shape[1], X_neg.shape[1]), dtype=torch.float64
+    # )
+    # # Set diagonal to 0
+    # W_random = W_random - torch.diag(torch.diag(W_random))
 
-    cost_random = eval_true_cost(
-        X_neg=X_neg,
-        use_scm=False,
-        beta=beta_random,
-        W_classifier=W_classifier,
-        b_classifier=b_classifier,
-        beta_ground_truth=beta_ground_truth,
-        learn_ordering=args.learn_ordering,
-        sorter=SoftSort(hard=True, tau=args.tau, device=device),
-        lr=args.lr,
-        max_epochs=20_000,
-        verbose=False,
-        scm=SCM.scm,
-        W_adjacency=W_random,
-    )
+    # cost_random = eval_true_cost(
+    #     X_neg=X_neg,
+    #     use_scm=False,
+    #     beta=beta_random,
+    #     W_classifier=W_classifier,
+    #     b_classifier=b_classifier,
+    #     beta_ground_truth=beta_ground_truth,
+    #     learn_ordering=args.learn_ordering,
+    #     sorter=SoftSort(hard=True, tau=args.tau, device=device),
+    #     lr=args.lr,
+    #     max_epochs=20_000,
+    #     verbose=False,
+    #     scm=SCM.scm,
+    #     W_adjacency=W_random,
+    # )
 
-    logging.info(
-        f"Cost increase with random beta and random W: {100*((cost_random/cost_ground_truth) -1)}%"
-    )
+    # logging.info(
+    #     f"Cost increase with random beta and random W: {100*((cost_random/cost_ground_truth) -1)}%"
+    # )
 
     scm_noise_list = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5]
     eval_noise_list = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5]
@@ -365,9 +376,9 @@ if __name__ == "__main__":
                     n_comparisons=n_comparisons,
                     max_epochs=args.max_epochs,
                     lr=args.lr,
-                    l2_reg=0.01,
+                    l2_reg=0.1,
                     tanh_param=20,
-                    verbose=False,
+                    verbose=True,
                 )
 
                 # Calculate cost
@@ -382,13 +393,13 @@ if __name__ == "__main__":
                     sorter=SoftSort(hard=True, tau=args.tau, device=device),
                     lr=args.lr,
                     max_epochs=20_000,
-                    verbose=False,
+                    verbose=True,
                     scm=SCM.scm,
                     W_adjacency=learned_W,
                 )
 
                 logging.info(
-                    f"Comparisons: {n_comparisons} | SCM noise: {scm_noise}| Eval noise: {eval_noise}| Cost increasL {100*((cost/cost_ground_truth) -1)}%"
+                    f"Comparisons: {n_comparisons} | SCM noise: {scm_noise} | Eval noise: {eval_noise} | Cost increase: {100*((cost/cost_ground_truth) -1)}%"
                 )
                 results_array[i, j, k] = (cost / cost_ground_truth) - 1
 

@@ -2,7 +2,7 @@
 
 In the introduction, three problems with cost functions used in the literature were outlined. The first of these was that actions are typically enacted sequentially (e.g., you first increase your income, and then increase your savings). This is important within the \textit{causal} algorithmic setting, where intervening on a variable (e.g, increasing income) has downstream (causal) effects on other variables such as savings. In this chapter, we first motivate \textit{causal} algorithmic recourse, then explore causal algorithmic recourse with soft, as opposed to hard interventions and finally propose a solution to optimise for ordering of sequential interventions when generating recourse.
 
-\section{Motivation}
+\section{Motivation} \label{section:causal_recourse_motivation}
 
 As discussed in section \ref{section:cost_functions_lit_review}, the cost of changing features is typically modelled as an $\cost(\mathbf{x,x}')=L_p(\mathbf{x} - \mathbf{x}')$ or the total log percentile shift \citep{ustunActionableRecourseLinear2019}. These cost functions fail to take into account the downstream (causal) effects of changing one feature on other features.\\
 
@@ -37,7 +37,7 @@ The Mahalanobis distance cost function $\texttt{cost}(\mathbf{x}, \mathbf{x}') =
 
 \section{Structural Causal Models} \label{section:scms}
 
-To incorporate changing one feature having a causal effect on the cost of changing another feature, we must model the effect of changing the feature $\mathbf{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\mathbf{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}.
+To incorporate changing one feature having a causal effect on the cost of changing another feature, we must model the effect of changing the feature $\mathbf{x}_1$ to $\mathbf{x'}_1$ has on changing the feature $\mathbf{x}_2$ to $\mathbf{x'}_2$. Following \textcite{karimiAlgorithmicRecourseCounterfactual2021}, we can model the world using a structural causal model (SCM) to account for downstream effects. The SCM can be defined formally as $\mathcal{M} = \langle\mathbb{U, V, F}\rangle$ capture all the causal relations in the world, where $\mathbb{U}$ represents set of exogenous variables, $\mathbb{V}$ represents the set of endogenous variables (all are a descendant of at least one of the variables in $\mathbb{U}$) and $\mathbb{F}$ represents the set of structural equations which describe how the endogenous variables can be determined from the exogenous variables \citep{pearl2016causal}\footnote{Whilst Pearl-style Directed Acyclic Graphs are the dominant methodology for modelling causal relations in the computer science and machine learning literature, it should ne noted that other approaches are common in other branches of literature, for example the potential outcomes framework in econometrics \citep{imbensPotentialOutcomeDirected2020}}.
 
 We can illustrate a simple SCM $\mathcal{M}$ with $\mathbb{U} = \{x_1\}$, $\mathbb{V} = \{x_2, x_3, x_4\}$ and structural equations $\mathbb{F}$ are defined in equation \ref{eq:toy_structural_equations}.
 
@@ -58,8 +58,6 @@ We can illustrate a simple SCM $\mathcal{M}$ with $\mathbb{U} = \{x_1\}$, $\math
 
 
 The SCM can also be presented with a causal graph $\mathcal{G}$, which is shown in Figure \ref{fig:toy_scm}. Let $x_1$ represent salary (in thousands of pounds), $x_2$ represent savings (in thousands of pounds), $x_3$ represent the debt (in thousands of pounds) and $x_4$ represent debt-to-income ratio. If an individual for whom the SCM $\mathcal{M}$ holds receives an increase in salary, this will lead to an increase in savings and a reduction the debt-to-income ratio. If the individual's initial features were [£30,000, £25,000, £10,000, 1/3]$^T$ and their salary increases to £35,000, then it should then be easier to increase their savings and decrease their debt-to-income ratio than when their salary was £30,000. This toy example shows how the SCM $\mathcal{M}$ encodes the downstream effect of increased salary on both savings and probability of mortgage approval.
-
-[\textbf{DISCUSSION ON PEARL-STYLE DAGS/INBENS CRITIQUE}]
 
 We can use the Abduction-Action-Prediction steps \citep{pearl2016causal} to obtain a \textit{structural counterfactual} of an increase in salary ($x_1$) from £30,000 to £35,000, given that the existing features are [£30,000, £25,000, £10,000, 1/3]$^T$ \comment{go over this example again, should be such that the hard intervention actually leads to the severing of an edge to illustrate the point on hard interventions}
 

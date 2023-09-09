@@ -266,9 +266,6 @@ if __name__ == "__main__":
     # Comparison list
     comparison_list = [5, 10, 20, 50, 100]
 
-    # Results array
-    results = np.zeros((len(comparison_list),))
-
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

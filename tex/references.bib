@@ -121,6 +121,23 @@
   langid = {english}
 }
 
+@article{caronEfficientBayesianInference2012,
+  title = {Efficient {{Bayesian Inference}} for {{Generalized Bradley}}—{{Terry Models}}},
+  author = {Caron, François and Doucet, Arnaud},
+  date = {2012},
+  journaltitle = {Journal of Computational and Graphical Statistics},
+  volume = {21},
+  number = {1},
+  eprint = {23248829},
+  eprinttype = {jstor},
+  pages = {174--196},
+  publisher = {{[American Statistical Association, Taylor \& Francis, Ltd., Institute of Mathematical Statistics, Interface Foundation of America]}},
+  issn = {1061-8600},
+  url = {https://www.jstor.org/stable/23248829},
+  urldate = {2023-09-08},
+  abstract = {The Bradley—Terry model is a popular approach to describe probabilities of the possible outcomes when elements of a set are repeatedly compared with one another in pairs. It has found many applications including animal behavior, chess ranking, and multiclass classification. Numerous extensions of the basic model have also been proposed in the literature including models with ties, multiple comparisons, group comparisons, and random graphs. From a computational point of view, Hunter has proposed efficient iterative minorization-maximization (MM) algorithms to perform maximum likelihood estimation for these generalized Bradley—Terry models whereas Bayesian inference is typically performed using Markov chain Monte Carlo algorithms based on tailored Metropolis—Hastings proposals. We show here that these MM algorithms can be reinterpreted as special instances of expectation-maximization algorithms associated with suitable sets of latent variables and propose some original extensions. These latent variables allow us to derive simple Gibbs samplers for Bayesian inference. We demonstrate experimentally the efficiency of these algorithms on a variety of applications.}
+}
+
 @article{celarHowPeopleReason2023,
   title = {How People Reason with Counterfactual and Causal Explanations for {{Artificial Intelligence}} Decisions in Familiar and Unfamiliar Domains},
   author = {Celar, Lenart and Byrne, Ruth M. J.},
@@ -161,6 +178,19 @@
   doi = {10.48550/arXiv.2205.13743},
   urldate = {2023-09-06},
   abstract = {Algorithmic Recourse (AR) is the problem of computing a sequence of actions that -- once performed by a user -- overturns an undesirable machine decision. It is paramount that the sequence of actions does not require too much effort for users to implement. Yet, most approaches to AR assume that actions cost the same for all users, and thus may recommend unfairly expensive recourse plans to certain users. Prompted by this observation, we introduce PEAR, the first human-in-the-loop approach capable of providing personalized algorithmic recourse tailored to the needs of any end-user. PEAR builds on insights from Bayesian Preference Elicitation to iteratively refine an estimate of the costs of actions by asking choice set queries to the target user. The queries themselves are computed by maximizing the Expected Utility of Selection, a principled measure of information gain accounting for uncertainty on both the cost estimate and the user's responses. PEAR integrates elicitation into a Reinforcement Learning agent coupled with Monte Carlo Tree Search to quickly identify promising recourse plans. Our empirical evaluation on real-world datasets highlights how PEAR produces high-quality personalized recourse in only a handful of iterations.},
+  pubstate = {preprint}
+}
+
+@online{dhurandharModelAgnosticContrastive2019b,
+  title = {Model {{Agnostic Contrastive Explanations}} for {{Structured Data}}},
+  author = {Dhurandhar, Amit and Pedapati, Tejaswini and Balakrishnan, Avinash and Chen, Pin-Yu and Shanmugam, Karthikeyan and Puri, Ruchir},
+  date = {2019-05-31},
+  eprint = {1906.00117},
+  eprinttype = {arxiv},
+  eprintclass = {cs, stat},
+  doi = {10.48550/arXiv.1906.00117},
+  urldate = {2023-09-08},
+  abstract = {Recently, a method [7] was proposed to generate contrastive explanations for differentiable models such as deep neural networks, where one has complete access to the model. In this work, we propose a method, Model Agnostic Contrastive Explanations Method (MACEM), to generate contrastive explanations for \textbackslash emph\{any\} classification model where one is able to \textbackslash emph\{only\} query the class probabilities for a desired input. This allows us to generate contrastive explanations for not only neural networks, but models such as random forests, boosted trees and even arbitrary ensembles that are still amongst the state-of-the-art when learning on structured data [13]. Moreover, to obtain meaningful explanations we propose a principled approach to handle real and categorical features leading to novel formulations for computing pertinent positives and negatives that form the essence of a contrastive explanation. A detailed treatment of the different data types of this nature was not performed in the previous work, which assumed all features to be positive real valued with zero being indicative of the least interesting value. We part with this strong implicit assumption and generalize these methods so as to be applicable across a much wider range of problem settings. We quantitatively and qualitatively validate our approach over 5 public datasets covering diverse domains.},
   pubstate = {preprint}
 }
 
@@ -267,6 +297,22 @@
   pubstate = {preprint}
 }
 
+@article{imbensPotentialOutcomeDirected2020,
+  title = {Potential {{Outcome}} and {{Directed Acyclic Graph Approaches}} to {{Causality}}: {{Relevance}} for {{Empirical Practice}} in {{Economics}}},
+  shorttitle = {Potential {{Outcome}} and {{Directed Acyclic Graph Approaches}} to {{Causality}}},
+  author = {Imbens, Guido W.},
+  date = {2020-12},
+  journaltitle = {Journal of Economic Literature},
+  volume = {58},
+  number = {4},
+  pages = {1129--1179},
+  issn = {0022-0515},
+  doi = {10.1257/jel.20191597},
+  urldate = {2023-09-07},
+  abstract = {(Pearl and Mackenzie 2018). I also discuss the potential outcome framework developed by Rubin and coauthors (e.g., Rubin 2006), building on work by Neyman (1990 [1923]). I then discuss the relative merits of these approaches for empirical work in economics, focusing on the questions each framework answers well, and why much of the the work in economics is closer in spirit to the potential outcome perspective.},
+  langid = {english}
+}
+
 @inproceedings{jagadeesanAlternativeMicrofoundationsStrategic2021,
   title = {Alternative {{Microfoundations}} for {{Strategic Classification}}},
   booktitle = {Proceedings of the 38th {{International Conference}} on {{Machine Learning}}, {{ICML}} 2021, 18-24 {{July}} 2021, {{Virtual Event}}},
@@ -323,6 +369,22 @@
   abstract = {The automated video interview has become increasingly popular. There are nearly endless options with similar services — among them HireVue, Modern Hire, Spark Hire, myInterview, Humanly.io, Willo and Curious Thing. Entry-level college graduates in banking, tech and even consulting almost always get funneled through these systems.},
   langid = {english},
   organization = {{Protocol}}
+}
+
+@article{vonkugelgenFairnessCausalAlgorithmic2022,
+  title = {On the {{Fairness}} of {{Causal Algorithmic Recourse}}},
+  author = {family=Kügelgen, given=Julius, prefix=von, useprefix=true and Karimi, Amir-Hossein and Bhatt, Umang and Valera, Isabel and Weller, Adrian and Schölkopf, Bernhard},
+  date = {2022-06-28},
+  journaltitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume = {36},
+  number = {9},
+  pages = {9584--9594},
+  issn = {2374-3468},
+  doi = {10.1609/aaai.v36i9.21192},
+  urldate = {2023-09-08},
+  abstract = {Algorithmic fairness is typically studied from the perspective of predictions. Instead, here we investigate fairness from the perspective of recourse actions suggested to individuals to remedy an unfavourable classification. We propose two new fair-ness criteria at the group and individual level, which—unlike prior work on equalising the average group-wise distance from the decision boundary—explicitly account for causal relationships between features, thereby capturing downstream effects of recourse actions performed in the physical world. We explore how our criteria relate to others, such as counterfactual fairness, and show that fairness of recourse is complementary to fairness of prediction. We study theoretically and empirically how to enforce fair causal recourse by altering the classifier and perform a case study on the Adult dataset. Finally, we discuss whether fairness violations in the data generating process revealed by our criteria may be better addressed by societal interventions as opposed to constraints on the classifier.},
+  issue = {9},
+  langid = {english}
 }
 
 @inproceedings{levanonGeneralizedStrategicClassification2022,
@@ -440,6 +502,20 @@
   langid = {english}
 }
 
+@inproceedings{rawalIndividualizedRecourseInterpretable2020,
+  title = {Beyond {{Individualized Recourse}}: {{Interpretable}} and {{Interactive Summaries}} of {{Actionable Recourses}}},
+  shorttitle = {Beyond {{Individualized Recourse}}},
+  booktitle = {Advances in {{Neural Information Processing Systems}}},
+  author = {Rawal, Kaivalya and Lakkaraju, Himabindu},
+  date = {2020},
+  volume = {33},
+  pages = {12187--12198},
+  publisher = {{Curran Associates, Inc.}},
+  url = {https://proceedings.neurips.cc/paper/2020/hash/8ee7730e97c67473a424ccfeff49ab20-Abstract.html},
+  urldate = {2023-09-08},
+  abstract = {As predictive models are increasingly being deployed in high-stakes decision-making, there has been a lot of interest in developing algorithms which can provide recourses to affected individuals. While developing such tools is important, it is even more critical to analyze and interpret a predictive model, and vet it thoroughly to ensure that the recourses it offers are meaningful and non-discriminatory before it is deployed in the real world. To this end, we propose a novel model agnostic framework called Actionable Recourse Summaries (AReS) to construct global counterfactual explanations which provide an interpretable and accurate summary of recourses for the entire population.  We formulate a novel objective which simultaneously optimizes for correctness of the recourses and interpretability of the explanations, while minimizing overall recourse costs across the entire population. More specifically, our objective enables us to learn, with optimality guarantees on recourse correctness, a small number of compact rule sets each of which capture recourses for well defined subpopulations within the data. We also demonstrate theoretically that several of the prior approaches proposed to generate recourses for individuals are special cases of our framework. Experimental evaluation with real world datasets and user studies demonstrate that our framework can provide decision makers with a comprehensive overview of recourses corresponding to any black box model, and consequently help detect undesirable model biases and discrimination.}
+}
+
 @inproceedings{rothWatchLearnOptimizing2016,
   title = {Watch and Learn: Optimizing from Revealed Preferences Feedback},
   shorttitle = {Watch and Learn},
@@ -507,6 +583,20 @@
   urldate = {2023-08-19},
   abstract = {Classification models are often used to make decisions that affect humans: whether to approve a loan application, extend a job offer, or provide insurance. In such applications, individuals should have the ability to change the decision of the model. When a person is denied a loan by a credit scoring model, for example, they should be able to change the input variables of the model in a way that will guarantee approval. Otherwise, this person will be denied the loan so long as the model is deployed, and -- more importantly --will lack agency over a decision that affects their livelihood. In this paper, we propose to evaluate a linear classification model in terms of recourse, which we define as the ability of a person to change the decision of the model through actionable input variables (e.g., income vs. age or marital status). We present an integer programming toolkit to: (i) measure the feasibility and difficulty of recourse in a target population; and (ii) generate a list of actionable changes for a person to obtain a desired outcome. We discuss how our tools can inform different stakeholders by using them to audit recourse for credit scoring models built with real-world datasets. Our results illustrate how recourse can be significantly affected by common modeling practices, and motivate the need to evaluate recourse in algorithmic decision-making.},
   isbn = {978-1-4503-6125-5}
+}
+
+@inproceedings{vanlooverenInterpretableCounterfactualExplanations2021,
+  title = {Interpretable {{Counterfactual Explanations Guided}} by {{Prototypes}}},
+  booktitle = {Machine {{Learning}} and {{Knowledge Discovery}} in {{Databases}}. {{Research Track}}},
+  author = {Van Looveren, Arnaud and Klaise, Janis},
+  date = {2021},
+  pages = {650--665},
+  publisher = {{Springer International Publishing}},
+  location = {{Cham}},
+  doi = {10.1007/978-3-030-86520-7_40},
+  abstract = {We propose a fast, model agnostic method for finding interpretable counterfactual explanations of classifier predictions by using class prototypes. We show that class prototypes, obtained using either an encoder or through class specific k-d trees, significantly speed up the search for counterfactual instances and result in more interpretable explanations. We quantitatively evaluate interpretability of the generated counterfactuals to illustrate the effectiveness of our method on an image and tabular dataset, respectively MNIST and Breast Cancer Wisconsin (Diagnostic). Additionally, we propose a principled approach to handle categorical variables and illustrate our method on the Adult (Census) dataset. Our method also eliminates the computational bottleneck that arises because of numerical gradient evaluation for black box models.},
+  isbn = {978-3-030-86520-7},
+  langid = {english}
 }
 
 @inproceedings{venkatasubramanianPhilosophicalBasisAlgorithmic2020,
