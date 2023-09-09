@@ -227,7 +227,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_epochs", type=int, default=10_000)
     parser.add_argument("--scm_noise", type=float, default=0)
     parser.add_argument("--eval_noise", type=float, default=0)
-    parser.add_argument("--scm_name", type=str, default="nonlinear")
+    parser.add_argument("--scm_name", type=str, default="simple")
     args = parser.parse_args()
 
     setup_logging(args)
@@ -260,12 +260,14 @@ if __name__ == "__main__":
 
     # Ground truth beta
     if args.scm_name == "simple":
-        beta_ground_truth = torch.tensor([0.1, 0.2, 0.7], dtype=torch.float64).repeat(
+        beta_ground_truth = torch.tensor([0.7, 0.2, 0.1], dtype=torch.float64).repeat(
             X_neg.shape[0], 1
         )
-        beta_ground_truth += torch.rand(
-            X_neg.shape[0], X_neg.shape[1], dtype=torch.float64
-        )
+        # beta_ground_truth += torch.rand(
+        #     X_neg.shape[0], X_neg.shape[1], dtype=torch.float64
+        # )
+        m = torch.distributions.Gamma(torch.tensor([0.05]), torch.tensor([1]))
+        beta_ground_truth += m.sample(sample_shape=X_neg.shape).squeeze(-1)
 
     elif args.scm_name == "nonlinear":
         beta_ground_truth = torch.tensor(
@@ -399,7 +401,7 @@ if __name__ == "__main__":
                 )
 
                 logging.info(
-                    f"Comparisons: {n_comparisons} | SCM noise: {scm_noise} | Eval noise: {eval_noise} | Cost increase: {100*((cost/cost_ground_truth) -1)}%"
+                    f"Comparisons: {n_comparisons} | SCM noise: {scm_noise} | Eval noise: {eval_noise} | Cost increase: {100*((cost/cost_ground_truth) -1)}% | Cost: {cost}"
                 )
                 results_array[i, j, k] = (cost / cost_ground_truth) - 1
 

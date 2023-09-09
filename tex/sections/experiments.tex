@@ -38,7 +38,7 @@ The end to end methodology for generating recourse with a learned cost is shown 
 
 We create synthetic SCMs, from which we sample our data $\mathbf{X}$. We simulate two different SCMs, the first being a linear SCM and the second a non-linear SCM. In both cases, we assign individuals to have the same randomly generated feature mutability $\beta$ plus some noise. This means that individuals tend to have similar preferences, but do not have the same preferences.
 
-\subsection{Linear SCM}
+\subsection{Linear SCM} \label{section:linear_scm}
 
 Shown below are the structural equations of the linear SCM $\mathcal{M}_{\text{LIN}}$ as well as the associated causal graph.
 
@@ -100,6 +100,23 @@ In this section, we present the results of the learned cost function on the two 
 
 \subsection{Linear SCM}
 
+In this section, we detail the performance of our methodology on the linear SCM outlined in section \ref{section:linear_scm}. We compare the cost of the recourse we generated to the cost of the recourse generated using the ground truth user preferences $\beta_k$ and the ground truth SCM. Assuming that there is no noise in either the users' evaluation of their own preferences and their local evaluation of the SCM, we have calculated the percentage increase in cost of the recourse generated compared to the ground truth recourse.
+
+\begin{table}[!htb]
+	\centering
+	\begin{tabular}{l|l|l}
+		\hline
+		\textbf{Model} & \textbf{Cost} & \textbf{Increase in cost (\%)} \\
+		\hline
+		Ground truth   & 0.214 & 0\%                        \\
+		Identity $W$   & 0.363 & 69.5\%                     \\
+		5 comparisons  & 0.332 &  55.1\%                     \\
+		10 comparisons & 0.290 &  35.4\%                     \\
+		20 comparisons & 0.250 &  16.7\%                     \\ 
+		50 comparisons & 0.224 &  4.6\%                      \\ \hline
+	\end{tabular}
+	\caption{Ground truth cost of recourse }
+\end{table}
 
 
 \subsection{Non-Linear SCM}
