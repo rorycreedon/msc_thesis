@@ -19,14 +19,15 @@ def setup_logging(args) -> None:
     logging.basicConfig(
         filename=f"logs/{args.scm_name}SCM_comparison_results.log",
         filemode="w",
-        format="%(name)s - %(levelname)s - %(message)s",
+        format="%(asctime)s %(levelname)-8s %(message)s",
         level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     # Add a stream handler to also log to the console
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(
-        logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     )
     logging.getLogger().addHandler(console_handler)
 
@@ -148,6 +149,10 @@ def learn_beta(
         verbose=verbose,
     )
 
+    print(f"Ground truth beta: {ground_truth_beta}")
+    print(f"Learned beta: {learned_beta}")
+    print(f"Learned W: {learned_W}")
+
     return learned_beta, learned_W, loss_list
 
 
@@ -227,7 +232,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_epochs", type=int, default=10_000)
     parser.add_argument("--scm_noise", type=float, default=0)
     parser.add_argument("--eval_noise", type=float, default=0)
-    parser.add_argument("--scm_name", type=str, default="simple")
+    parser.add_argument("--scm_name", type=str, default="nonlinear")
     args = parser.parse_args()
 
     setup_logging(args)
@@ -271,7 +276,7 @@ if __name__ == "__main__":
 
     elif args.scm_name == "nonlinear":
         beta_ground_truth = torch.tensor(
-            [0.05, 0.4, 0.1, 0.3, 0.15], dtype=torch.float64
+            [0.05, 0.05, 0.6, 0.15, 0.15], dtype=torch.float64
         ).repeat(X_neg.shape[0], 1)
         m = torch.distributions.Gamma(torch.tensor([0.05]), torch.tensor([1]))
         beta_ground_truth += m.sample(sample_shape=X_neg.shape).squeeze(-1)
@@ -309,7 +314,9 @@ if __name__ == "__main__":
     beta_random = torch.ones(X_neg.shape, dtype=torch.float64)
     beta_random = beta_random / torch.sum(beta_random, dim=1)[:, None]
 
-    W_identity = torch.eye(X_neg.shape[1], dtype=torch.float64)
+    W_identity = torch.zeros(
+        X_neg.shape[1], X_neg.shape[1], dtype=torch.float64
+    )  # this seems counterintuitive but it we add on the identity matrix in casual_recourse
 
     cost_identity = eval_true_cost(
         X_neg=X_neg,
@@ -327,83 +334,64 @@ if __name__ == "__main__":
         W_adjacency=W_identity,
     )
 
+    beta_norm = torch.sum((beta_random - beta_ground_truth) ** 2, dim=1).mean().item()
+
     logging.info(
-        f"Cost increase with random beta and identity W: {100*((cost_identity/cost_ground_truth) -1)}%"
+        f"Cost increase with random beta and identity W: {100*((cost_identity/cost_ground_truth) -1)}% | beta_norm: {beta_norm}"
     )
 
-    # # Random W and random beta
-    # W_random = torch.normal(
-    #     0, 1, size=(X_neg.shape[1], X_neg.shape[1]), dtype=torch.float64
-    # )
-    # # Set diagonal to 0
-    # W_random = W_random - torch.diag(torch.diag(W_random))
+    noise_list = [0, 0.125, 0.25, 0.375, 0.5]
 
-    # cost_random = eval_true_cost(
-    #     X_neg=X_neg,
-    #     use_scm=False,
-    #     beta=beta_random,
-    #     W_classifier=W_classifier,
-    #     b_classifier=b_classifier,
-    #     beta_ground_truth=beta_ground_truth,
-    #     learn_ordering=args.learn_ordering,
-    #     sorter=SoftSort(hard=True, tau=args.tau, device=device),
-    #     lr=args.lr,
-    #     max_epochs=20_000,
-    #     verbose=False,
-    #     scm=SCM.scm,
-    #     W_adjacency=W_random,
-    # )
+    results_array = np.empty((len(noise_list), len(comparison_list)))
+    beta_array = np.empty((len(noise_list), len(comparison_list)))
 
-    # logging.info(
-    #     f"Cost increase with random beta and random W: {100*((cost_random/cost_ground_truth) -1)}%"
-    # )
+    for i, noise in enumerate(noise_list):
+        for k, n_comparisons in enumerate(comparison_list):
+            # Learn beta
+            learned_beta, learned_W, loss_list = learn_beta(
+                X_neg=X_neg,
+                ground_truth_beta=beta_ground_truth,
+                scm=SCM.scm,
+                eval_noise=noise,
+                scm_noise=noise,
+                n_comparisons=n_comparisons,
+                max_epochs=args.max_epochs,
+                lr=args.lr,
+                l2_reg=0.1,
+                tanh_param=20,
+                verbose=False,
+            )
 
-    scm_noise_list = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5]
-    eval_noise_list = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5]
+            # Calculate cost
+            cost = eval_true_cost(
+                X_neg=X_neg,
+                use_scm=False,
+                beta=learned_beta,
+                W_classifier=W_classifier,
+                b_classifier=b_classifier,
+                beta_ground_truth=beta_ground_truth,
+                learn_ordering=args.learn_ordering,
+                sorter=SoftSort(hard=True, tau=args.tau, device=device),
+                lr=args.lr,
+                max_epochs=20_000,
+                verbose=False,
+                scm=SCM.scm,
+                W_adjacency=learned_W,
+            )
 
-    results_array = np.empty(
-        (len(scm_noise_list), len(eval_noise_list), len(comparison_list))
-    )
+            beta_norm = (
+                torch.sum((learned_beta - beta_ground_truth) ** 2, dim=1).mean().item()
+            )
 
-    for i, scm_noise in enumerate(scm_noise_list):
-        for j, eval_noise in enumerate(eval_noise_list):
-            for k, n_comparisons in enumerate(comparison_list):
-                # Learn beta
-                learned_beta, learned_W, loss_list = learn_beta(
-                    X_neg=X_neg,
-                    ground_truth_beta=beta_ground_truth,
-                    scm=SCM.scm,
-                    eval_noise=eval_noise,
-                    scm_noise=scm_noise,
-                    n_comparisons=n_comparisons,
-                    max_epochs=args.max_epochs,
-                    lr=args.lr,
-                    l2_reg=0.1,
-                    tanh_param=20,
-                    verbose=False,
-                )
-
-                # Calculate cost
-                cost = eval_true_cost(
-                    X_neg=X_neg,
-                    use_scm=False,
-                    beta=learned_beta,
-                    W_classifier=W_classifier,
-                    b_classifier=b_classifier,
-                    beta_ground_truth=beta_ground_truth,
-                    learn_ordering=args.learn_ordering,
-                    sorter=SoftSort(hard=True, tau=args.tau, device=device),
-                    lr=args.lr,
-                    max_epochs=20_000,
-                    verbose=False,
-                    scm=SCM.scm,
-                    W_adjacency=learned_W,
-                )
-
-                logging.info(
-                    f"Comparisons: {n_comparisons} | SCM noise: {scm_noise} | Eval noise: {eval_noise} | Cost increase: {100*((cost/cost_ground_truth) -1)}% | Cost: {cost}"
-                )
-                results_array[i, j, k] = (cost / cost_ground_truth) - 1
+            logging.info(
+                    f"Comparisons: {n_comparisons} | Noise: {noise} | Cost increase: {100*((cost/cost_ground_truth) -1)}% | Cost: {cost} | Learned weights : {learned_W} | Beta norm: {beta_norm}"
+            )
+            results_array[i, k] = (cost / cost_ground_truth) - 1
+            beta_array[i, k] = beta_norm
 
     # Save results
     np.save(f"results/{args.scm_name}SCM_comparison_results.npy", results_array)
+    np.save(
+        f"results/{args.scm_name}SCM_comparison_beta_norm.npy",
+        beta_array,
+    )

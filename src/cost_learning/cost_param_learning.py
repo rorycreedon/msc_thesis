@@ -27,9 +27,12 @@ class CostLearner:
         self.X = X
         self.n_comparisons = n_comparisons
         # self.ground_truth_beta = ground_truth_beta / torch.sum(ground_truth_beta)
-        self.ground_truth_beta = ground_truth_beta / torch.sum(
-            ground_truth_beta, axis=1, keepdims=True
-        )
+        if ground_truth_beta.ndim == 1:
+            self.ground_truth_beta = ground_truth_beta / torch.sum(ground_truth_beta)
+        else:
+            self.ground_truth_beta = ground_truth_beta / torch.sum(
+                ground_truth_beta, axis=1, keepdims=True
+            )
         self.scm = scm
         self.scm_known = scm_known
         self.use_kernel_ridge = use_kernel_ridge
@@ -164,7 +167,7 @@ class CostLearner:
 
         for i in range(W_adjacency.shape[0]):
             costs += torch.sum(((actions - X_bar) ** 2) * (S == i) * beta, dim=1)
-            X_bar += ((actions - X_bar) * (S == i).to(torch.float64)) @ W_temp
+            X_bar = X_bar + ((actions - X_bar) * (S == i).to(torch.float64)) @ W_temp
 
         return costs
 
@@ -314,7 +317,9 @@ class CostLearner:
         vprint = print if verbose else lambda *a, **k: None
 
         # Initialise parameters
-        learned_beta = torch.ones(self.X.shape, dtype=torch.float64, requires_grad=True)
+        learned_beta = torch.ones(
+            self.ground_truth_beta.shape, dtype=torch.float64, requires_grad=True
+        )
 
         # If W assumed to be known, set it to the ground truth
         if self.scm_known is False:
@@ -383,9 +388,12 @@ class CostLearner:
             learned_beta.data = torch.clamp(
                 learned_beta.data, min=0.05
             )  # setting min at 0.01, don't want any beta=0 because it would make it free to change one feature
-            learned_beta.data = learned_beta.data / torch.sum(
-                learned_beta.data, axis=1, keepdims=True
-            )
+            if learned_beta.ndim == 1:
+                learned_beta.data = learned_beta.data / torch.sum(learned_beta.data)
+            else:
+                learned_beta.data = learned_beta.data / torch.sum(
+                    learned_beta.data, axis=1, keepdims=True
+                )
 
             # Track losses
             loss_list.append(loss.item())
@@ -456,8 +464,8 @@ if __name__ == "__main__":
         n_comparisons=5,
         ground_truth_beta=beta_ground_truth,
         scm=SCM.scm,
-        scm_known=False,
-        use_kernel_ridge=True,
+        scm_known=True,
+        use_kernel_ridge=False,
     )
     cost_learner.eval_random_actions(scm_noise=0, eval_noise=0)
     cost_learner.learn(verbose=True, lr=1e-3, l2_reg=0.1, max_epochs=2_000)

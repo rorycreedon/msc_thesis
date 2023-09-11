@@ -181,6 +181,22 @@
   pubstate = {preprint}
 }
 
+@article{detoniSynthesizingExplainableCounterfactual2023,
+  title = {Synthesizing Explainable Counterfactual Policies for Algorithmic Recourse with Program Synthesis},
+  author = {De Toni, Giovanni and Lepri, Bruno and Passerini, Andrea},
+  date = {2023-04-01},
+  journaltitle = {Machine Learning},
+  shortjournal = {Mach Learn},
+  volume = {112},
+  number = {4},
+  pages = {1389--1409},
+  issn = {1573-0565},
+  doi = {10.1007/s10994-022-06293-7},
+  urldate = {2023-09-11},
+  abstract = {Being able to provide counterfactual interventions—sequences of actions we would have had to take for a desirable outcome to happen—is essential to explain how to change an unfavourable decision by a black-box machine learning model (e.g., being denied a loan request). Existing solutions have mainly focused on generating feasible interventions without providing explanations of their rationale. Moreover, they need to solve a separate optimization problem for each user. In this paper, we take a different approach and learn a program that outputs a sequence of explainable counterfactual actions given a user description and a causal graph. We leverage program synthesis techniques, reinforcement learning coupled with Monte Carlo Tree Search for efficient exploration, and rule learning to extract explanations for each recommended action. An experimental evaluation on synthetic and real-world datasets shows how our approach, FARE (eFficient counterfActual REcourse), generates effective interventions by making orders of magnitude fewer queries to the black-box classifier with respect to existing solutions, with the additional benefit of complementing them with interpretable explanations.},
+  langid = {english}
+}
+
 @online{dhurandharModelAgnosticContrastive2019b,
   title = {Model {{Agnostic Contrastive Explanations}} for {{Structured Data}}},
   author = {Dhurandhar, Amit and Pedapati, Tejaswini and Balakrishnan, Avinash and Chen, Pin-Yu and Shanmugam, Karthikeyan and Puri, Ruchir},
@@ -371,7 +387,7 @@
   organization = {{Protocol}}
 }
 
-@article{vonkugelgenFairnessCausalAlgorithmic2022,
+@article{kugelgenFairnessCausalAlgorithmic2022,
   title = {On the {{Fairness}} of {{Causal Algorithmic Recourse}}},
   author = {family=Kügelgen, given=Julius, prefix=von, useprefix=true and Karimi, Amir-Hossein and Bhatt, Umang and Valera, Isabel and Weller, Adrian and Schölkopf, Bernhard},
   date = {2022-06-28},
@@ -439,6 +455,20 @@
   pages = {16331--16352},
   publisher = {{PMLR}},
   url = {https://proceedings.mlr.press/v162/nair22a.html}
+}
+
+@inproceedings{naumannConsequenceAwareSequentialCounterfactual2021,
+  title = {Consequence-{{Aware Sequential Counterfactual Generation}}},
+  booktitle = {Machine {{Learning}} and {{Knowledge Discovery}} in {{Databases}}. {{Research Track}}},
+  author = {Naumann, Philip and Ntoutsi, Eirini},
+  date = {2021},
+  pages = {682--698},
+  publisher = {{Springer International Publishing}},
+  location = {{Cham}},
+  doi = {10.1007/978-3-030-86520-7_42},
+  abstract = {Counterfactuals have become a popular technique nowadays for interacting with black-box machine learning models and understanding how to change a particular instance to obtain a desired outcome from the model. However, most existing approaches assume instant materialization of these changes, ignoring that they may require effort and a specific order of application. Recently, methods have been proposed that also consider the order in which actions are applied, leading to the so-called sequential counterfactual generation problem.},
+  isbn = {978-3-030-86520-7},
+  langid = {english}
 }
 
 @article{odonoghueOperatorSplittingHomogeneous2021,

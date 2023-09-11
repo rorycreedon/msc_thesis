@@ -1,3 +1,16 @@
 \chapter{Conclusion} \label{chapter:conclusion}
 
-Conclusion chapter.
+In the introduction of this thesis, three problems with existing cost functions in algorithmic recourse were presented. \\
+
+\begin{enumerate}
+	\item Actions should be modelled as sequential interventions, as opposed to occurring simultaneously.
+	\item The cost function should take into account user preferences.
+	\item The cost function is highly reliant on the functional form and parameters of the true SCM.
+\end{enumerate}
+\bigskip
+
+As a solution to the first problem, we proposed making use of $\softsort$ \citep{prilloSoftSortContinuousRelaxation2020} to allow gradient-based optimisation of the ordering of actions used to generate recourse. Compared to alternatives such as \textcite{naumannConsequenceAwareSequentialCounterfactual2021} and \textcite{detoniSynthesizingExplainableCounterfactual2023}, it has the advantages of (a) a much simpler formulation, and (b) differentiability, meaning that can be incorporated into gradient-based methods to generate recourse.\\
+
+As a solution to the second and third problems, we proposed a novel methodology to learn both user preferences and a linear approximation of the true SCM. In a synthetic data setting with a linear SCM, this methodology successfully recovers the parameters of the SCM. For a sufficiently large number of comparisons proposed to users, learning user preferences and an approximation of the SCM leads to significantly less costly recourse. \\
+
+To the best of our knowledge, this is the first implementation of an algorithmic recourse methodology which learns both user preferences and causal effects. As briefly discussed in section \ref{section:discussion}, there are several further avenues for future works. Firstly, with few paired comparisons presenter to the users, user preferences are not recovered particularly successfully. One of the main causes of this is that the paired comparisons are currently randomly generated. Future works could leverage online learning, presenting paired comparisons which maximise the expected information gain. Secondly, in this thesis, only a \textit{linear} approximation of the SCM is implemented. However, the true SCM may be highly non-linear. Future works expand this to less parametric approximations of the SCM, such as kernel ridge regression. Finally, in order to truly understand the performance of our methodology (as well as other works in algorithmic recourse), user studies would be required. This may, however, introduce a plethora of other practical concerns, such as how to select users, how results and options are presented to users and training of the classifier.

@@ -92,9 +92,9 @@ class NonLinearSCM:
         # Define the equations
         eq1 = Eq(x1, u1)
         eq2 = Eq(x2, u2 - 2 / (1 + x1**2))
-        eq3 = Eq(x3, u3 + 0.2 * x1 * x2 + 0.1 * x1)
-        eq4 = Eq(x4, u4 + 0.4 * x1 + 0.2 * x2 * x3)
-        eq5 = Eq(x5, u5 + 0.8 * x1)
+        eq3 = Eq(x3, u3 + 0.3 * x1 * x2 + 0.1 * x1)
+        eq4 = Eq(x4, u4 + 0.6 * x1 - 0.2 * x2 * x3)
+        eq5 = Eq(x5, u5 + 0.8 * x4)
 
         equations = [eq1, eq2, eq3, eq4, eq5]
 
