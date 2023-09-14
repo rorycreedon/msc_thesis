@@ -2,42 +2,7 @@
 {
     \pagestyle{abstract}
     \chapter*{Abstract}
-    \begin{itemize}
-    	\item Most works in algorithmic recourse assume a simple, pre-specified cost function for changing feature values.
-    	\item Understanding \textit{individual} cost functions is important for generating recourse and understanding \textit{global} cost functions is important for strategic classification.
-    	\item Whilst there has been research into generating individual recourse through preference elicitation, there has not been research into learning \textit{global} cost functions.
-    	\item Learning algorithms are proposed to learn cost function from the users' revealed preferences - their responses to a series of pairwise comparisons of different recourse options.
-    	\item The algorithms are evaluated on synthetic and semi-synthetic data.
-    	\item Recourse costs are compared for users with different protected attributes, showing if learning costs functions aids or exacerbates fairness of recourse.
-    \end{itemize}
+      As algorithmic decision making systems have become more widely used in the real world, interest in algorithmic recourse, a set of actions an individual can perform in order to obtain a positive outcome from a model, has also increased. This thesis addresses three key issues in the generation of algorithmic recourse. Firstly, in the real world, actions such as increasing income and increasing savings are often applied sequentially, as opposed to simultaneously. To this end, we propose a method to find the optimal \textit{sequence} of actions, making use of differentiable sorting. Secondly, we must take into account \textit{individual} preferences over how easy or difficult it is to change features. Thirdly, we must take into account the causal effects of changing one variable on other variables. To address the second and third issues, we design a novel methodology to learn both individual preferences and causal effects by presenting negatively classified individuals with a series of paired comparisons of different sequences of actions. We evaluate this methodology on synthetic data. Compared to a baseline of no knowledge over user preferences or the casual graph, we find that our methodology leads to less costly recourse.    
     \thispagestyle{abstract}
 }
 \newpage
-
-%\clearpage
-%{
-%    \pagestyle{is}
-%    \chapter*{Impact Statement}
-%    %% Insert the Impact Statement here. Delete the following line before compiling.
-%    Max 500 words. \newline\url{https://www.grad.ucl.ac.uk/essinfo/docs/Impact-Statement-Guidance-Notes-for-Research-Students-and-Supervisors.pdf} has further info. 
-%    \thispagestyle{is}
-%}
-%\newpage
-
-%\clearpage
-%{
-%    \pagestyle{dedication}
-%    \chapter*{Dedication}
-%    %% Insert the Dedication here.
-%    \thispagestyle{dedication}
-%}
-%\newpage
-
-%\clearpage
-%{
-%    \pagestyle{acknowledgements}
-%    \chapter*{Acknowledgements}
-%    %% Insert the Acknowledgements here.
-%    \thispagestyle{acknowledgements}
-%}
-%\newpage
