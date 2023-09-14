@@ -3,8 +3,7 @@ numpy==1.24.3
 pandas==2.0.1
 scikit_learn==1.2.2
 scipy==1.11.2
-simulation==0.1.1.dev80
 sympy==1.11.1
 sympytorch==0.1.4
-torch==2.0.1+cpu
+torch==2.0.1
 tqdm==4.66.1
